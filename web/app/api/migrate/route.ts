@@ -7,7 +7,11 @@ export async function GET(request: Request) {
   if (secret !== 'migr8now') return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
+    host: '2600:1f18:2e13:9d28:b8a3:912c:111e:7deb',
+    port: 5432,
+    user: 'postgres',
+    database: 'postgres',
+    password: process.env.DB_PASSWORD,
     ssl: { rejectUnauthorized: false },
   });
 
