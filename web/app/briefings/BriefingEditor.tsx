@@ -28,7 +28,7 @@ const BracketDim = Extension.create({
                   Decoration.inline(
                     pos + match.index,
                     pos + match.index + match[0].length,
-                    { style: 'opacity: 0.2' },
+                    { style: 'opacity: 0.1' },
                   ),
                 );
               }
