@@ -106,11 +106,15 @@ function DockItem({
 
 // ── Main Dock ────────────────────────────────────────────────────────────────
 
+const SHOW_THRESHOLD = 80; // px from bottom edge to trigger reveal
+
 export function Dock({ briefings }: { briefings: Briefing[] }) {
   const supabase = createClient();
   const [panel, setPanel] = useState<Panel>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const mouseX = useMotionValue(Infinity);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -134,6 +138,38 @@ export function Dock({ briefings }: { briefings: Briefing[] }) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // Auto-hide: show when mouse within SHOW_THRESHOLD of bottom, hide after leaving
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const nearBottom = e.clientY >= window.innerHeight - SHOW_THRESHOLD;
+      if (nearBottom) {
+        clearTimeout(hideTimer.current);
+        setVisible(true);
+      }
+    };
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, []);
+
+  const handleDockLeave = () => {
+    // Don't hide if a panel is open
+    if (panel) return;
+    hideTimer.current = setTimeout(() => setVisible(false), 400);
+  };
+
+  const handleDockEnter = () => {
+    clearTimeout(hideTimer.current);
+    setVisible(true);
+  };
+
+  // Keep visible while panel is open; hide when panel closes and mouse is gone
+  useEffect(() => {
+    if (panel) {
+      clearTimeout(hideTimer.current);
+      setVisible(true);
+    }
+  }, [panel]);
+
   const resolveComment = async (id: string) => {
     await supabase
       .from('briefing_comments')
@@ -155,7 +191,13 @@ export function Dock({ briefings }: { briefings: Briefing[] }) {
   }, {});
 
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3">
+    <motion.div
+      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-3"
+      animate={{ y: visible ? 0 : 120, opacity: visible ? 1 : 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+      onMouseEnter={handleDockEnter}
+      onMouseLeave={handleDockLeave}
+    >
       {/* Panel */}
       {panel && (
         <motion.div
@@ -296,7 +338,7 @@ export function Dock({ briefings }: { briefings: Briefing[] }) {
           <span className="text-[8px] uppercase tracking-widest text-white/50 mt-0.5">Total</span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
