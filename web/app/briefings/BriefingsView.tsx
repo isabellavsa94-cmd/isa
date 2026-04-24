@@ -324,9 +324,248 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
   );
 }
 
-export function BriefingsView({ briefings }: { briefings: Briefing[] }) {
+const ACCENT_PRESETS = [
+  'oklch(0.65 0.15 250)',
+  'oklch(0.72 0.18 155)',
+  'oklch(0.68 0.18 340)',
+  'oklch(0.70 0.18 30)',
+  'oklch(0.70 0.15 300)',
+  'oklch(0.68 0.12 210)',
+];
+
+function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreated: (b: Briefing) => void }) {
+  const supabase = createClient();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    nome_demanda: '',
+    format: '' as BriefingFormat | '',
+    canal: '',
+    etapa_funil: '',
+    data_publicacao: '',
+    conceito: '',
+    accent_color: ACCENT_PRESETS[0],
+  });
+  const [responsavel, setResponsavel] = useState<TeamMember | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.nome_demanda.trim()) return;
+    setSaving(true);
+    const payload = {
+      nome_demanda: form.nome_demanda.trim(),
+      format: form.format || null,
+      canal: form.canal || null,
+      etapa_funil: form.etapa_funil || null,
+      data_publicacao: form.data_publicacao || null,
+      conceito: form.conceito || null,
+      accent_color: form.accent_color,
+      responsavel: responsavel ?? null,
+      hashtags: [],
+    };
+    const { data, error } = await supabase.from('briefings').insert(payload).select().single();
+    setSaving(false);
+    if (!error && data) onCreated(data as Briefing);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Drawer */}
+      <div className="relative ml-auto h-full w-[400px] bg-neutral-900 border-l border-neutral-800 flex flex-col shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="shrink-0 px-5 py-4 border-b border-neutral-800 flex items-center justify-between">
+          <span className="text-sm font-semibold text-white">Novo briefing</span>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Nome */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Nome da demanda *</label>
+            <input
+              autoFocus
+              required
+              value={form.nome_demanda}
+              onChange={(e) => set('nome_demanda', e.target.value)}
+              placeholder="Ex: Stitch Mosseri — Alcance"
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500"
+            />
+          </div>
+
+          {/* Format */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Formato</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['Feed', 'Carrossel', 'Reels', 'Stories'] as BriefingFormat[]).map((fmt) => {
+                const style = FORMAT_STYLES[fmt];
+                const active = form.format === fmt;
+                return (
+                  <button
+                    key={fmt}
+                    type="button"
+                    onClick={() => set('format', active ? '' : fmt)}
+                    className={`py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                      active ? 'border-transparent' : 'border-neutral-700 bg-neutral-800 text-neutral-400'
+                    }`}
+                    style={active ? { background: style.bg, color: style.text } : {}}
+                  >
+                    {fmt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Canal + Funil */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Canal</label>
+              <input
+                value={form.canal}
+                onChange={(e) => set('canal', e.target.value)}
+                placeholder="Instagram"
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Etapa do funil</label>
+              <select
+                value={form.etapa_funil}
+                onChange={(e) => set('etapa_funil', e.target.value)}
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 outline-none focus:border-neutral-500 appearance-none"
+              >
+                <option value="">—</option>
+                <option>Topo</option>
+                <option>Meio</option>
+                <option>Fundo</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Data publicação */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Data de publicação</label>
+            <input
+              value={form.data_publicacao}
+              onChange={(e) => set('data_publicacao', e.target.value)}
+              placeholder="Ex: 20/05/2026 · 09h00"
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500"
+            />
+          </div>
+
+          {/* Conceito */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Conceito</label>
+            <textarea
+              value={form.conceito}
+              onChange={(e) => set('conceito', e.target.value)}
+              placeholder="Descreva o conceito do conteúdo..."
+              rows={3}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500 resize-none"
+            />
+          </div>
+
+          {/* Responsável */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Responsável</label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                className="flex items-center gap-2 w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-left hover:border-neutral-600 transition-colors"
+              >
+                {responsavel ? (
+                  <>
+                    <Avatar member={responsavel} size={5} />
+                    <span className="text-neutral-200">{responsavel.nome}</span>
+                  </>
+                ) : (
+                  <span className="text-neutral-500">Alocar responsável</span>
+                )}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-neutral-600 ml-auto">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {pickerOpen && (
+                <div className="absolute left-0 top-full mt-1 z-10 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-full">
+                  <button
+                    type="button"
+                    onClick={() => { setResponsavel(null); setPickerOpen(false); }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-700 transition-colors"
+                  >
+                    Nenhum
+                  </button>
+                  {TEAM_MEMBERS.map((m) => (
+                    <button
+                      key={m.nome}
+                      type="button"
+                      onClick={() => { setResponsavel(m); setPickerOpen(false); }}
+                      className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-neutral-700 transition-colors ${responsavel?.nome === m.nome ? 'bg-neutral-700/60 text-white' : 'text-neutral-300'}`}
+                    >
+                      <Avatar member={m} size={5} />
+                      {m.nome}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Accent color */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Cor do card</label>
+            <div className="flex gap-2">
+              {ACCENT_PRESETS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => set('accent_color', c)}
+                  className={`w-6 h-6 rounded-full transition-all ${form.accent_color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-900 scale-110' : ''}`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+          </div>
+        </form>
+
+        {/* Footer */}
+        <div className="shrink-0 px-5 py-4 border-t border-neutral-800 flex items-center justify-between">
+          <button onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit as unknown as React.MouseEventHandler}
+            disabled={saving || !form.nome_demanda.trim()}
+            className="text-xs bg-white text-neutral-900 font-semibold px-4 py-2 rounded-lg disabled:opacity-40 hover:bg-neutral-100 transition-colors flex items-center gap-1.5"
+          >
+            {saving ? 'Criando…' : 'Criar briefing'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function BriefingsView({ briefings: initialBriefings }: { briefings: Briefing[] }) {
+  const [briefings, setBriefings] = useState(initialBriefings);
   const [activeFormat, setActiveFormat] = useState<BriefingFormat | 'Todos'>('Todos');
   const [search, setSearch] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleCreated = (b: Briefing) => {
+    setBriefings((prev) => [b, ...prev]);
+    setModalOpen(false);
+  };
 
   const formatCounts = briefings.reduce<Record<string, number>>((acc, b) => {
     if (b.format) acc[b.format] = (acc[b.format] ?? 0) + 1;
@@ -341,10 +580,6 @@ export function BriefingsView({ briefings }: { briefings: Briefing[] }) {
         b.nome_demanda.toLowerCase().includes(search.toLowerCase()) ||
         (b.conceito ?? '').toLowerCase().includes(search.toLowerCase()),
     );
-
-  const legendasCount = briefings.filter((b) => b.legenda).length;
-  const arteCount = briefings.filter((b) => b.image && !b.image.startsWith('data:')).length;
-  const topFormat = Object.entries(formatCounts).sort((a, b) => b[1] - a[1])[0] ?? null;
 
   return (
     <div className="flex flex-col h-screen min-h-0 bg-neutral-950">
@@ -388,12 +623,12 @@ export function BriefingsView({ briefings }: { briefings: Briefing[] }) {
               className="pl-6 pr-3 py-1.5 text-xs bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-500 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-500 w-44"
             />
           </div>
-          <a
-            href="/briefings/new"
+          <button
+            onClick={() => setModalOpen(true)}
             className="text-xs bg-white text-neutral-900 font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors whitespace-nowrap"
           >
             + Novo briefing
-          </a>
+          </button>
           <form action="/logout" method="post">
             <button type="submit" className="text-xs text-neutral-500 hover:text-neutral-300 px-2 transition-colors">
               Sair
@@ -452,6 +687,17 @@ export function BriefingsView({ briefings }: { briefings: Briefing[] }) {
       </div>
 
       <Dock briefings={briefings} />
+
+      {/* Floating + button */}
+      <button
+        onClick={() => setModalOpen(true)}
+        title="Novo briefing"
+        className="fixed right-5 bottom-24 z-40 w-11 h-11 bg-white text-neutral-900 rounded-full shadow-lg flex items-center justify-center hover:bg-neutral-100 transition-colors text-xl font-light"
+      >
+        +
+      </button>
+
+      {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} />}
     </div>
   );
 }
