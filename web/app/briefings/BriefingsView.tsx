@@ -31,6 +31,61 @@ const FORMAT_STYLES: Record<string, { bg: string; text: string }> = {
   Stories:   { bg: '#A855F7', text: '#fff' },
 };
 
+function LinkField({ briefingId, field, initialValue }: { briefingId: string; field: string; initialValue: string | null }) {
+  const supabase = createClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initialValue ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const save = async () => {
+    setEditing(false);
+    await supabase.from('briefings').update({ [field]: value || null }).eq('id', briefingId);
+  };
+
+  const isUrl = value.startsWith('http://') || value.startsWith('https://');
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setValue(initialValue ?? ''); setEditing(false); } }}
+        placeholder="https://..."
+        className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500"
+      />
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 group">
+      {value ? (
+        isUrl ? (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 truncate flex-1">
+            {value}
+          </a>
+        ) : (
+          <span className="text-xs text-neutral-300 flex-1">{value}</span>
+        )
+      ) : (
+        <span className="text-xs text-neutral-600 italic flex-1">Sem link</span>
+      )}
+      <button
+        onClick={() => setEditing(true)}
+        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-neutral-300"
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function Avatar({ member, size }: { member: { nome: string; foto: string | null }; size: number }) {
   const url = storageUrl(member.foto);
   const px = size * 4;
@@ -241,6 +296,7 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
             <p>{briefing.etapa_funil}</p>
           </Section>
         )}
+        {briefing.format === 'Reels' && (
         <Section title="Responsável">
           <div className="relative" ref={pickerRef}>
             <button
@@ -288,6 +344,7 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
             )}
           </div>
         </Section>
+        )}
         {briefing.conceito && (
           <Section title="Conceito">
             <BriefingEditor briefingId={briefing.id} field="conceito" initialContent={briefing.conceito} />
@@ -303,11 +360,9 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
             <BriefingEditor briefingId={briefing.id} field="descricao_peca" initialContent={briefing.descricao_peca} />
           </Section>
         )}
-        {briefing.referencia_arte && (
-          <Section title="Referência de arte">
-            <BriefingEditor briefingId={briefing.id} field="referencia_arte" initialContent={briefing.referencia_arte} />
-          </Section>
-        )}
+        <Section title="Referência de arte / Link">
+          <LinkField briefingId={briefing.id} field="referencia_arte" initialValue={briefing.referencia_arte} />
+        </Section>
         {briefing.legenda && (
           <Section title="Texto da legenda">
             <BriefingEditor briefingId={briefing.id} field="legenda" initialContent={briefing.legenda} />
