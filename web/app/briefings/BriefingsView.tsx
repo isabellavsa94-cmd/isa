@@ -197,21 +197,26 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const aspectRatio =
+    briefing.format === 'Reels' || briefing.format === 'Stories' ? '9 / 16' : '4 / 5';
+
   return (
     <div className="flex-none w-72 flex flex-col bg-neutral-900 rounded-xl overflow-hidden shadow-lg">
-      {/* Visual header */}
+      {/* Visual header — correct aspect ratio, full image visible */}
       <div
-        className="relative h-52 shrink-0 flex flex-col justify-between p-3 overflow-hidden cursor-pointer"
+        className="relative shrink-0 flex flex-col justify-between p-3 overflow-hidden cursor-pointer"
         style={{
-          background: hasImage ? undefined : color,
+          aspectRatio,
+          background: color,
           backgroundImage: hasImage ? `url(${imageUrl})` : undefined,
-          backgroundSize: 'cover',
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
           backgroundPosition: 'center',
         }}
         onMouseEnter={() => setHeaderHover(true)}
         onMouseLeave={() => { setHeaderHover(false); setUploadError(null); }}
       >
-        {hasImage && <div className="absolute inset-0 bg-black/40" />}
+        {hasImage && <div className="absolute inset-0 bg-black/20" />}
 
         {/* Upload overlay on hover */}
         {headerHover && (
@@ -729,28 +734,30 @@ export function BriefingsView({ briefings: initialBriefings }: { briefings: Brie
       </header>
 
       {/* Card columns */}
-      <div className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden gap-3 px-4 py-4">
-        {filtered.length === 0 ? (
+      <div className="flex-1 min-h-0 flex overflow-x-auto gap-3 px-4 py-4 items-start">
+        {filtered.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">
             Nenhum briefing{activeFormat !== 'Todos' ? ` em ${activeFormat}` : ''} ainda.
           </div>
-        ) : (
-          filtered.map((b, i) => (
-            <BriefingCard key={b.id} briefing={b} index={i} />
-          ))
         )}
+        {filtered.map((b, i) => (
+          <BriefingCard key={b.id} briefing={b} index={i} />
+        ))}
+
+        {/* Add briefing card */}
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex-none w-72 min-h-[480px] rounded-xl border border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3 group transition-all duration-300 hover:border-green-500/50 hover:bg-green-500/[0.04] cursor-pointer"
+        >
+          <span className="text-3xl font-light text-neutral-600 group-hover:text-green-500 transition-colors duration-300">+</span>
+          <div className="text-center">
+            <p className="text-sm font-medium text-neutral-600 group-hover:text-green-400 transition-colors duration-300">Novo briefing</p>
+            <p className="text-xs text-neutral-700 mt-0.5 group-hover:text-neutral-500 transition-colors duration-300">Criar do zero</p>
+          </div>
+        </button>
       </div>
 
       <Dock briefings={briefings} />
-
-      {/* Floating + button */}
-      <button
-        onClick={() => setModalOpen(true)}
-        title="Novo briefing"
-        className="fixed right-5 bottom-24 z-40 w-11 h-11 bg-white text-neutral-900 rounded-full shadow-lg flex items-center justify-center hover:bg-neutral-100 transition-colors text-xl font-light"
-      >
-        +
-      </button>
 
       {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} />}
     </div>
