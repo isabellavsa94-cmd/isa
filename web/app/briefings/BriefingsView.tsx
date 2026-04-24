@@ -733,7 +733,7 @@ export function BriefingsView({ briefings: initialBriefings }: { briefings: Brie
       </header>
 
       {/* Card columns */}
-      <div className="flex-1 min-h-0 flex overflow-x-auto gap-3 px-4 py-4 items-start">
+      <div className="flex-1 min-h-0 flex overflow-x-auto gap-5 px-6 py-5 items-start">
         {filtered.length === 0 && (
           <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">
             Nenhum briefing{activeFormat !== 'Todos' ? ` em ${activeFormat}` : ''} ainda.
