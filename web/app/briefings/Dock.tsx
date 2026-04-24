@@ -134,8 +134,13 @@ export function Dock({ briefings }: { briefings: Briefing[] }) {
   useEffect(() => {
     loadComments();
     const onVisible = () => { if (!document.hidden) loadComments(); };
+    const onNewComment = () => loadComments();
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    document.addEventListener('briefing-comment-added', onNewComment);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('briefing-comment-added', onNewComment);
+    };
   }, []);
 
   // Auto-hide: show when mouse within SHOW_THRESHOLD of bottom, hide after leaving
