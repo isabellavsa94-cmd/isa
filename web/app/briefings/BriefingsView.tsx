@@ -209,14 +209,13 @@ function BriefingCard({ briefing, index }: { briefing: Briefing; index: number }
           aspectRatio,
           background: color,
           backgroundImage: hasImage ? `url(${imageUrl})` : undefined,
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
         onMouseEnter={() => setHeaderHover(true)}
         onMouseLeave={() => { setHeaderHover(false); setUploadError(null); }}
       >
-        {hasImage && <div className="absolute inset-0 bg-black/20" />}
+        {hasImage && <div className="absolute inset-0 bg-black/30" />}
 
         {/* Upload overlay on hover */}
         {headerHover && (
