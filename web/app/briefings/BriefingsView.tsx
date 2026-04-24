@@ -105,18 +105,13 @@ function Avatar({ member, size }: { member: { nome: string; foto: string | null 
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold mb-0.5">
-      {children}
-    </p>
-  );
-}
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="py-3 border-b border-neutral-800 last:border-0">
-      <Label>{title}</Label>
+    <div className="py-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold whitespace-nowrap shrink-0">{title}</span>
+        <div className="flex-1 h-px bg-neutral-800" />
+      </div>
       {children}
     </div>
   );
