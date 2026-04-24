@@ -3,9 +3,43 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
-import { Mark, mergeAttributes } from '@tiptap/core';
+import { Mark, mergeAttributes, Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+
+// Dim text inside [ ] brackets
+const BracketDim = Extension.create({
+  name: 'bracketDim',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('bracketDim'),
+        props: {
+          decorations(state) {
+            const decos: Decoration[] = [];
+            state.doc.descendants((node, pos) => {
+              if (!node.isText || !node.text) return;
+              const regex = /\[[^\]]*\]/g;
+              let match;
+              while ((match = regex.exec(node.text)) !== null) {
+                decos.push(
+                  Decoration.inline(
+                    pos + match.index,
+                    pos + match.index + match[0].length,
+                    { style: 'opacity: 0.3' },
+                  ),
+                );
+              }
+            });
+            return DecorationSet.create(state.doc, decos);
+          },
+        },
+      }),
+    ];
+  },
+});
 
 // Inline comment mark
 const CommentMark = Mark.create({
@@ -66,7 +100,7 @@ export function BriefingEditor({
   useEffect(() => { commentOpenRef.current = commentOpen; }, [commentOpen]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, CommentMark],
+    extensions: [StarterKit, Underline, CommentMark, BracketDim],
     content: plainToHtml(initialContent),
     editorProps: {
       attributes: {
