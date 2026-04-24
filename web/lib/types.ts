@@ -15,7 +15,7 @@ export type Briefing = {
   descricao_peca: string | null;
   legenda: string | null;
   hashtags: string[];
-  responsavel: { nome: string; foto?: string } | null;
+  responsavel: { nome: string; foto: string | null } | null;
   image: string | null;
   slides: unknown | null;
   updated_at: string;
