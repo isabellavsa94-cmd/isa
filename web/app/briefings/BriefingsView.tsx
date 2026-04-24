@@ -12,7 +12,7 @@ const SUPABASE_URL_BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 type TeamMember = { nome: string; foto: string | null };
 
 const TEAM_MEMBERS: TeamMember[] = [
-  { nome: 'Renan Caixeiro', foto: 'uploads/pasted-1777003256892-0.png' },
+  { nome: 'Renan Caixeiro', foto: 'uploads/renan-caixeiro.jpeg' },
   { nome: 'Livia',           foto: null },
 ];
 
