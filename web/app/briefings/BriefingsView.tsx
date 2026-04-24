@@ -107,11 +107,9 @@ function Avatar({ member, size }: { member: { nome: string; foto: string | null 
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="py-1.5">
-      <div className="bg-neutral-800/40 rounded-lg px-3 py-2.5">
-        <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-1.5">{title}</p>
-        {children}
-      </div>
+    <div className="py-3 border-b border-neutral-800 last:border-0">
+      <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold mb-0.5">{title}</p>
+      {children}
     </div>
   );
 }
