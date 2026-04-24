@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import type { Briefing, BriefingFormat } from '@/lib/types';
+import { useRouter } from 'next/navigation';
+import type { Briefing, BriefingFormat, Client } from '@/lib/types';
 import { BriefingEditor } from './BriefingEditor';
 import { createClient } from '@/lib/supabase/client';
 import { Dock } from './Dock';
@@ -396,7 +397,7 @@ const ACCENT_PRESETS = [
   'oklch(0.68 0.12 210)',
 ];
 
-function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreated: (b: Briefing) => void }) {
+function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => void; onCreated: (b: Briefing) => void; clientId: string | null }) {
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -427,6 +428,7 @@ function NewBriefingModal({ onClose, onCreated }: { onClose: () => void; onCreat
       accent_color: form.accent_color,
       responsavel: responsavel ?? null,
       hashtags: [],
+      client_id: clientId,
     };
     const { data, error } = await supabase.from('briefings').insert(payload).select().single();
     setSaving(false);
@@ -820,12 +822,26 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
   );
 }
 
-export function BriefingsView({ briefings: initialBriefings }: { briefings: Briefing[] }) {
+type ClientTab = 'briefings' | 'uikit';
+
+export function BriefingsView({
+  briefings: initialBriefings,
+  clients,
+  activeClientId,
+}: {
+  briefings: Briefing[];
+  clients: Client[];
+  activeClientId: string | null;
+}) {
+  const router = useRouter();
   const [briefings, setBriefings] = useState(initialBriefings);
   const [activeFormat, setActiveFormat] = useState<BriefingFormat | 'Todos'>('Todos');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBriefing, setEditingBriefing] = useState<Briefing | null>(null);
+  const [clientTab, setClientTab] = useState<ClientTab>('briefings');
+
+  const activeClient = clients.find((c) => c.id === activeClientId) ?? null;
 
   const handleCreated = (b: Briefing) => {
     setBriefings((prev) => [b, ...prev]);
@@ -855,50 +871,63 @@ export function BriefingsView({ briefings: initialBriefings }: { briefings: Brie
     <div className="flex flex-col h-screen min-h-0 bg-neutral-950">
       {/* Top bar */}
       <nav className="shrink-0 bg-neutral-900 border-b border-neutral-800 px-5 h-12 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-sm font-bold text-white tracking-tight">
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-sm font-bold text-white tracking-tight shrink-0">
             myplatform
           </Link>
+
+          {/* Client switcher */}
+          {clients.length > 0 && (
+            <div className="flex items-center gap-0.5">
+              {clients.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => router.push(`/briefings?client=${c.id}`)}
+                  className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                    c.id === activeClientId
+                      ? 'bg-neutral-800 text-white font-medium'
+                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="w-px h-4 bg-neutral-700" />
+
           <div className="flex items-center gap-0.5">
-            <Link
-              href="/briefings"
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-neutral-800 text-white flex items-center gap-1.5"
-            >
-              Briefings
-              <span className="text-[10px] text-neutral-400">{briefings.length}</span>
-            </Link>
-            <Link
-              href="/"
-              className="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-            >
+            <Link href="/" className="text-xs px-3 py-1.5 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors">
               Refs
             </Link>
-            <Link
-              href="/collections"
-              className="text-xs px-3 py-1.5 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-            >
+            <Link href="/collections" className="text-xs px-3 py-1.5 rounded-md text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors">
               Collections
             </Link>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">#</span>
-            <input
-              type="text"
-              placeholder="Buscar briefings..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-6 pr-3 py-1.5 text-xs bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-500 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-500 w-44"
-            />
-          </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="text-xs bg-white text-neutral-900 font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors whitespace-nowrap"
-          >
-            + Novo briefing
-          </button>
+          {clientTab === 'briefings' && (
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">#</span>
+              <input
+                type="text"
+                placeholder="Buscar briefings..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-6 pr-3 py-1.5 text-xs bg-neutral-800 border border-neutral-700 text-neutral-200 placeholder-neutral-500 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-500 w-44"
+              />
+            </div>
+          )}
+          {clientTab === 'briefings' && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="text-xs bg-white text-neutral-900 font-medium px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition-colors whitespace-nowrap"
+            >
+              + Novo briefing
+            </button>
+          )}
           <form action="/logout" method="post">
             <button type="submit" className="text-xs text-neutral-500 hover:text-neutral-300 px-2 transition-colors">
               Sair
@@ -907,69 +936,131 @@ export function BriefingsView({ briefings: initialBriefings }: { briefings: Brie
         </div>
       </nav>
 
-      {/* Sub-header: title + filter tabs */}
+      {/* Sub-header: client name + inner tabs + format filter */}
       <header className="shrink-0 bg-neutral-900 border-b border-neutral-800 px-6 pt-4 pb-0">
-        <div className="mb-3">
-          <h1 className="text-base font-semibold text-white">Briefings de conteúdo</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">{briefings.length} no workspace</p>
+        <div className="mb-3 flex items-baseline gap-3">
+          <h1 className="text-base font-semibold text-white">
+            {activeClient?.name ?? 'Briefings'}
+          </h1>
+          {activeClient && (
+            <p className="text-xs text-neutral-500">{briefings.length} briefings</p>
+          )}
         </div>
 
-        <div className="flex gap-0">
-          {FORMAT_TABS.map((tab) => {
-            const count = tab === 'Todos' ? briefings.length : (formatCounts[tab] ?? 0);
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveFormat(tab)}
-                className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
-                  activeFormat === tab
-                    ? 'border-white text-white font-semibold'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-300'
-                }`}
-              >
-                {tab}
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                    activeFormat === tab
-                      ? 'bg-white text-neutral-900'
-                      : 'bg-neutral-800 text-neutral-500'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+        {/* Inner client tabs: Briefings | UI Kit */}
+        <div className="flex gap-0 mb-0">
+          <button
+            onClick={() => setClientTab('briefings')}
+            className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px ${
+              clientTab === 'briefings'
+                ? 'border-white text-white font-semibold'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
+            }`}
+          >
+            Briefings
+          </button>
+          <button
+            onClick={() => setClientTab('uikit')}
+            className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px ${
+              clientTab === 'uikit'
+                ? 'border-white text-white font-semibold'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
+            }`}
+          >
+            UI Kit
+          </button>
+
+          {clientTab === 'briefings' && (
+            <>
+              <div className="w-px h-4 bg-neutral-700 self-center mx-2" />
+              {FORMAT_TABS.map((tab) => {
+                const count = tab === 'Todos' ? briefings.length : (formatCounts[tab] ?? 0);
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveFormat(tab)}
+                    className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+                      activeFormat === tab
+                        ? 'border-white text-white font-semibold'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-300'
+                    }`}
+                  >
+                    {tab}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeFormat === tab ? 'bg-white text-neutral-900' : 'bg-neutral-800 text-neutral-500'}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       </header>
 
-      {/* Card columns */}
-      <div className="flex-1 min-h-0 flex overflow-x-auto gap-5 px-6 py-5 items-start">
-        {filtered.length === 0 && (
-          <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">
-            Nenhum briefing{activeFormat !== 'Todos' ? ` em ${activeFormat}` : ''} ainda.
-          </div>
-        )}
-        {filtered.map((b, i) => (
-          <BriefingCard key={b.id + '_' + b.updated_at} briefing={b} index={i} onEdit={() => setEditingBriefing(b)} />
-        ))}
+      {/* Content area */}
+      {clientTab === 'briefings' ? (
+        <div className="flex-1 min-h-0 flex overflow-x-auto gap-5 px-6 py-5 items-start">
+          {filtered.length === 0 && (
+            <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">
+              Nenhum briefing{activeFormat !== 'Todos' ? ` em ${activeFormat}` : ''} ainda.
+            </div>
+          )}
+          {filtered.map((b, i) => (
+            <BriefingCard key={b.id + '_' + b.updated_at} briefing={b} index={i} onEdit={() => setEditingBriefing(b)} />
+          ))}
 
-        {/* Add briefing card */}
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex-none w-72 min-h-[480px] rounded-xl border border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3 group transition-all duration-300 hover:border-green-500/50 hover:bg-green-500/[0.04] cursor-pointer"
-        >
-          <span className="text-3xl font-light text-neutral-600 group-hover:text-green-500 transition-colors duration-300">+</span>
-          <div className="text-center">
-            <p className="text-sm font-medium text-neutral-600 group-hover:text-green-400 transition-colors duration-300">Novo briefing</p>
-            <p className="text-xs text-neutral-700 mt-0.5 group-hover:text-neutral-500 transition-colors duration-300">Criar do zero</p>
+          {/* Add briefing card */}
+          <button
+            onClick={() => setModalOpen(true)}
+            className="flex-none w-72 min-h-[480px] rounded-xl border border-dashed border-neutral-700 flex flex-col items-center justify-center gap-3 group transition-all duration-300 hover:border-green-500/50 hover:bg-green-500/[0.04] cursor-pointer"
+          >
+            <span className="text-3xl font-light text-neutral-600 group-hover:text-green-500 transition-colors duration-300">+</span>
+            <div className="text-center">
+              <p className="text-sm font-medium text-neutral-600 group-hover:text-green-400 transition-colors duration-300">Novo briefing</p>
+              <p className="text-xs text-neutral-700 mt-0.5 group-hover:text-neutral-500 transition-colors duration-300">Criar do zero</p>
+            </div>
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-8">
+          <div className="max-w-2xl">
+            <p className="text-xs text-neutral-500 mb-6">UI Kit de <span className="text-white">{activeClient?.name}</span></p>
+            <div className="flex flex-col gap-6">
+              {/* Colors placeholder */}
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Cores</p>
+                <div className="flex gap-3">
+                  {['#111111', '#FFFFFF', '#F5F5F5', '#E5E5E5'].map((c) => (
+                    <div key={c} className="flex flex-col items-center gap-1.5">
+                      <div className="w-10 h-10 rounded-lg border border-neutral-800" style={{ background: c }} />
+                      <span className="text-[9px] text-neutral-600 font-mono">{c}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Typography placeholder */}
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Tipografia</p>
+                <div className="space-y-2 text-neutral-400">
+                  <p className="text-2xl font-bold text-white">Título principal</p>
+                  <p className="text-base font-medium">Subtítulo</p>
+                  <p className="text-sm">Corpo do texto</p>
+                  <p className="text-xs text-neutral-500">Legenda / auxiliar</p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-neutral-800">
+                <p className="text-xs text-neutral-600">Em breve: upload de assets, guia de voz e componentes visuais.</p>
+              </div>
+            </div>
           </div>
-        </button>
-      </div>
+        </div>
+      )}
 
       <Dock briefings={briefings} />
 
-      {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} />}
+      {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} clientId={activeClientId} />}
       {editingBriefing && <EditBriefingModal briefing={editingBriefing} onClose={() => setEditingBriefing(null)} onUpdated={handleUpdated} />}
     </div>
   );

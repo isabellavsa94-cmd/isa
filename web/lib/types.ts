@@ -2,8 +2,15 @@ export type RefType = 'page' | 'selection' | 'image' | 'video' | 'note';
 
 export type BriefingFormat = 'Feed' | 'Carrossel' | 'Reels' | 'Stories';
 
+export type Client = {
+  id: string;
+  name: string;
+  created_at: string;
+};
+
 export type Briefing = {
   id: string;
+  client_id: string | null;
   nome_demanda: string;
   canal: string | null;
   etapa_funil: string | null;
