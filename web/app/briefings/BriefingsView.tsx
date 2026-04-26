@@ -1092,11 +1092,11 @@ export function BriefingsView({
                 <div>
                   <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Elementos gráficos</p>
                   <div className="grid grid-cols-8 gap-2">
-                    {uikit.elementos.map((slug) => (
-                      <div key={slug} className="w-12 h-12 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center p-1.5">
+                    {uikit.elementos.map(({ slug, label }) => (
+                      <div key={slug} title={label} className="w-12 h-12 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center p-1.5">
                         <img
                           src={`/uikit/reportei-flux/elementos/${slug}.svg`}
-                          alt={slug}
+                          alt={label}
                           className="w-full h-full object-contain"
                         />
                       </div>

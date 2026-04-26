@@ -1,11 +1,12 @@
 export type UIKitColor = { hex: string; name: string }
 export type UIKitTypography = { role: string; fontFamily: string; weight: string; sizePx: number }
+export type UIKitElemento = { slug: string; label: string }
 export type UIKitData = {
   colors: UIKitColor[]
   backgrounds: UIKitColor[]
   colorCombos: [string, string][]
   typography: UIKitTypography[]
-  elementos: string[]
+  elementos: UIKitElemento[]
 }
 
 export const CLIENT_UIKITS: Record<string, UIKitData> = {
@@ -50,11 +51,32 @@ export const CLIENT_UIKITS: Record<string, UIKitData> = {
       { role: 'Body 2', fontFamily: 'Poppins', weight: 'Regular', sizePx: 42 },
     ],
     elementos: [
-      'ativo-01', 'ativo-02', 'ativo-03', 'ativo-04', 'ativo-05',
-      'ativo-06', 'ativo-07', 'ativo-08', 'ativo-09', 'ativo-10',
-      'ativo-11', 'ativo-12', 'ativo-13', 'ativo-14', 'ativo-15',
-      'ativo-16', 'ativo-17', 'ativo-18', 'ativo-19', 'ativo-20',
-      'ativo-21', 'ativo-55', 'ativo-56', 'ativo-57', 'ativo-58', 'ativo-59',
+      { slug: 'ativo-01', label: 'Gráfico de pizza bicolor, azul e rosa' },
+      { slug: 'ativo-02', label: 'Pilha de cards 3D isométrica, azul navy' },
+      { slug: 'ativo-03', label: 'Janela de dashboard com visualização de dados' },
+      { slug: 'ativo-04', label: 'Faísca/estrela decorativa, rosa claro' },
+      { slug: 'ativo-05', label: 'Forma orgânica ondulada, elemento de fundo rosa' },
+      { slug: 'ativo-06', label: 'Círculo sorriso, ícone de satisfação azul' },
+      { slug: 'ativo-07', label: 'Gráfico de barras curvo ascendente, azul' },
+      { slug: 'ativo-08', label: 'Foguete geométrico, símbolo de crescimento azul' },
+      { slug: 'ativo-09', label: 'Forma de pico de montanha curvo, decoração azul' },
+      { slug: 'ativo-10', label: 'Gráfico analítico complexo, camadas rosa e azul' },
+      { slug: 'ativo-11', label: 'Ecossistema cloud com nós conectados, fundo rosa' },
+      { slug: 'ativo-12', label: 'Envelope com faixa ondulada, fundo rosa claro' },
+      { slug: 'ativo-13', label: 'Dashboard UI complexo com janelas e gráficos aninhados' },
+      { slug: 'ativo-14', label: 'Estrutura de pastas geométrica multicolorida' },
+      { slug: 'ativo-15', label: 'Ícone de checkmark com badge de verificação' },
+      { slug: 'ativo-16', label: 'Pilha de documentos/planilhas, preenchimento azul claro' },
+      { slug: 'ativo-17', label: 'Visualização de gráfico com linhas e pontos de dados' },
+      { slug: 'ativo-18', label: 'Padrão de grade decorativo, elemento de fundo' },
+      { slug: 'ativo-19', label: 'Múltiplos frames de smartphone com dashboards' },
+      { slug: 'ativo-20', label: 'Lupa com gráfico de análise, ícone de busca decorativo' },
+      { slug: 'ativo-21', label: 'Documento flutuante com datas de calendário, fundo azul claro' },
+      { slug: 'ativo-55', label: 'Pílula arredondada rosa, container/botão vazio' },
+      { slug: 'ativo-56', label: 'Pílula arredondada azul, container/botão vazio' },
+      { slug: 'ativo-57', label: 'Pílula arredondada azul claro, container/botão vazio' },
+      { slug: 'ativo-58', label: 'Padrão de grade decorativo, linhas roxas' },
+      { slug: 'ativo-59', label: 'Padrão de grade decorativo, linhas azul claro' },
     ],
   },
 }
