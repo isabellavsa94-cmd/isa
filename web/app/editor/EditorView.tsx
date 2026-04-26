@@ -22,7 +22,7 @@ export function EditorView() {
   const [html, setHtml] = useState(DEFAULT_HTML);
   const [scale, setScale] = useState(0.35);
   const [artH, setArtH] = useState(1536);
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState<null | 'image' | 'layout'>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -89,10 +89,9 @@ export function EditorView() {
     }
   };
 
-  const generateWithAI = async () => {
-    // Lock edit mode before regenerating
+  const generate = async (mode: 'image' | 'layout') => {
     if (editMode) toggleEditMode();
-    setGenerating(true);
+    setGenerating(mode);
     setAiError(null);
     setRefsUsed(null);
     try {
@@ -100,7 +99,8 @@ export function EditorView() {
       const briefing = savedBriefing ? JSON.parse(savedBriefing) : {};
       setArtH(1536);
 
-      const res = await fetch('/api/generate-layout', {
+      const endpoint = mode === 'image' ? '/api/generate-layout' : '/api/generate-html';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,13 +111,13 @@ export function EditorView() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido');
-      if (!data.html) throw new Error('A IA não retornou HTML');
+      if (!data.html) throw new Error('A IA não retornou resultado');
       setHtml(data.html);
       setRefsUsed(data.refsUsed ?? 0);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'Erro ao gerar');
     } finally {
-      setGenerating(false);
+      setGenerating(null);
     }
   };
 
@@ -165,14 +165,28 @@ export function EditorView() {
       <header className="shrink-0 border-b border-neutral-200 bg-white px-4 py-2 flex items-center gap-2 flex-wrap">
         <h1 className="text-sm font-medium mr-2">Editor de arte</h1>
 
+        {/* Layout HTML via Claude */}
         <button
-          onClick={generateWithAI}
-          disabled={generating}
+          onClick={() => generate('layout')}
+          disabled={generating !== null}
           className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
+          title="Claude gera HTML/CSS editável respeitando o UI Kit"
         >
-          {generating
-            ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando…</>
-            : '✦ Gerar com IA'}
+          {generating === 'layout'
+            ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando layout…</>
+            : '✦ Gerar layout'}
+        </button>
+
+        {/* Imagem pixel via gpt-image-1 */}
+        <button
+          onClick={() => generate('image')}
+          disabled={generating !== null}
+          className="text-xs px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
+          title="GPT Image 2 gera imagem pixel-perfect (não editável)"
+        >
+          {generating === 'image'
+            ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando imagem…</>
+            : '🖼 Gerar imagem'}
         </button>
 
         <div className="w-px h-5 bg-neutral-200" />
