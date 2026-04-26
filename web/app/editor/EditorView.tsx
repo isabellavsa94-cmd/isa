@@ -27,16 +27,27 @@ export function EditorView() {
   const [showCode, setShowCode] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [refsUsed, setRefsUsed] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // Inject HTML into DOM directly so edits aren't wiped by React
+  useEffect(() => {
+    if (previewRef.current) {
+      previewRef.current.innerHTML = html;
+    }
+  }, [html]);
+
+  // Persist edited content (reads from DOM, not state)
+  const saveFromDOM = useCallback(() => {
+    if (!previewRef.current) return;
+    const current = previewRef.current.innerHTML;
+    try { localStorage.setItem(STORAGE_KEY, current); } catch {}
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) setHtml(saved);
   }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, html); } catch {}
-  }, [html]);
 
   const fitToScreen = useCallback(() => {
     const area = document.querySelector('.canvas-area') as HTMLElement | null;
@@ -52,7 +63,35 @@ export function EditorView() {
     return () => window.removeEventListener('resize', fitToScreen);
   }, [fitToScreen]);
 
+  // Toggle contenteditable on all text nodes inside the art div
+  const toggleEditMode = () => {
+    const el = previewRef.current;
+    if (!el) return;
+    const artDiv = el.querySelector('div') as HTMLElement | null;
+    if (!artDiv) return;
+    const next = !editMode;
+    setEditMode(next);
+    if (next) {
+      // Make only text elements editable, not the whole canvas (preserves layout)
+      artDiv.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,span,li,a,button,div:not(:has(*))').forEach(node => {
+        node.contentEditable = 'true';
+        node.style.outline = '1.5px dashed rgba(139,92,246,0.5)';
+        node.style.cursor = 'text';
+        node.style.minWidth = '4px';
+      });
+    } else {
+      artDiv.querySelectorAll<HTMLElement>('[contenteditable]').forEach(node => {
+        node.contentEditable = 'false';
+        node.style.outline = '';
+        node.style.cursor = '';
+      });
+      saveFromDOM();
+    }
+  };
+
   const generateWithAI = async () => {
+    // Lock edit mode before regenerating
+    if (editMode) toggleEditMode();
     setGenerating(true);
     setAiError(null);
     setRefsUsed(null);
@@ -84,12 +123,21 @@ export function EditorView() {
     }
   };
 
+  const syncCodeFromDOM = () => {
+    if (!previewRef.current) return;
+    setHtml(previewRef.current.innerHTML);
+  };
+
   const exportPNG = async () => {
     if (!previewRef.current) return;
+    // Save edits before exporting
+    if (editMode) toggleEditMode();
     setExporting(true);
     try {
       const { toPng } = await import('html-to-image');
-      const dataUrl = await toPng(previewRef.current, {
+      // Find the art div inside the wrapper
+      const artEl = (previewRef.current.querySelector('div') ?? previewRef.current) as HTMLElement;
+      const dataUrl = await toPng(artEl, {
         width: ART_W,
         height: artH,
         pixelRatio: 2,
@@ -108,6 +156,7 @@ export function EditorView() {
 
   const reset = () => {
     if (!confirm('Resetar o canvas?')) return;
+    if (editMode) toggleEditMode();
     setHtml(DEFAULT_HTML);
     setArtH(1350);
   };
@@ -123,49 +172,50 @@ export function EditorView() {
           disabled={generating}
           className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
         >
-          {generating ? (
-            <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando…</>
-          ) : '✦ Gerar com IA'}
+          {generating
+            ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando…</>
+            : '✦ Gerar com IA'}
         </button>
 
-        {refsUsed !== null && (
+        <div className="w-px h-5 bg-neutral-200" />
+
+        {/* Edit mode toggle */}
+        <button
+          onClick={toggleEditMode}
+          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+            editMode
+              ? 'bg-amber-50 border-amber-400 text-amber-700 font-semibold'
+              : 'border-neutral-200 hover:bg-neutral-50'
+          }`}
+        >
+          {editMode ? '✎ Editando — clique para salvar' : '✎ Editar textos'}
+        </button>
+
+        {aiError && <span className="text-xs text-red-500 ml-1">{aiError}</span>}
+        {refsUsed !== null && !aiError && (
           <span className="text-[10px] text-neutral-400">
-            {refsUsed > 0 ? `${refsUsed} referência${refsUsed > 1 ? 's' : ''} usada${refsUsed > 1 ? 's' : ''}` : 'sem refs'}
+            {refsUsed > 0 ? `${refsUsed} ref${refsUsed > 1 ? 's' : ''} usada${refsUsed > 1 ? 's' : ''}` : ''}
           </span>
         )}
 
-        {aiError && <span className="text-xs text-red-500">{aiError}</span>}
+        <div className="w-px h-5 bg-neutral-200" />
 
-        <div className="w-px h-5 bg-neutral-200 mx-1" />
-
-        <button
-          onClick={fitToScreen}
-          className="text-[10px] px-2 h-7 border border-neutral-200 rounded hover:bg-neutral-50 tabular-nums"
-        >
+        <button onClick={fitToScreen} className="text-[10px] px-2 h-7 border border-neutral-200 rounded hover:bg-neutral-50 tabular-nums">
           {Math.round(scale * 100)}%
         </button>
+        <button onClick={() => setScale(s => Math.min(2, s * 1.2))} className="text-xs w-7 h-7 border border-neutral-200 rounded hover:bg-neutral-50">+</button>
+        <button onClick={() => setScale(s => Math.max(0.05, s / 1.2))} className="text-xs w-7 h-7 border border-neutral-200 rounded hover:bg-neutral-50">−</button>
+
+        <div className="w-px h-5 bg-neutral-200" />
 
         <button
-          onClick={() => setScale(s => Math.min(2, s * 1.2))}
-          className="text-xs w-7 h-7 border border-neutral-200 rounded hover:bg-neutral-50"
-        >+</button>
-        <button
-          onClick={() => setScale(s => Math.max(0.05, s / 1.2))}
-          className="text-xs w-7 h-7 border border-neutral-200 rounded hover:bg-neutral-50"
-        >−</button>
-
-        <div className="w-px h-5 bg-neutral-200 mx-1" />
-
-        <button
-          onClick={() => setShowCode(v => !v)}
+          onClick={() => { syncCodeFromDOM(); setShowCode(v => !v); }}
           className={`text-xs px-2 py-1 border rounded transition-colors ${showCode ? 'border-violet-400 text-violet-600 bg-violet-50' : 'border-neutral-200 hover:bg-neutral-50'}`}
         >
-          {showCode ? 'Fechar código' : '&lt;/&gt; Código'}
+          &lt;/&gt; HTML
         </button>
 
-        <button onClick={reset} className="text-xs px-2 py-1 text-neutral-400 hover:text-neutral-700">
-          Resetar
-        </button>
+        <button onClick={reset} className="text-xs px-2 py-1 text-neutral-400 hover:text-neutral-700">Resetar</button>
 
         <div className="ml-auto" />
 
@@ -177,6 +227,13 @@ export function EditorView() {
           {exporting ? 'Exportando…' : 'Exportar PNG'}
         </button>
       </header>
+
+      {editMode && (
+        <div className="shrink-0 bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-xs text-amber-700 flex items-center gap-2">
+          <span>✎ Modo de edição ativo — clique em qualquer texto no canvas para editar.</span>
+          <span className="text-amber-500">Clique em "Editando" na toolbar para salvar.</span>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* Canvas */}
@@ -190,7 +247,6 @@ export function EditorView() {
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
               }}
-              dangerouslySetInnerHTML={{ __html: html }}
             />
           </div>
         </div>
@@ -198,14 +254,15 @@ export function EditorView() {
         {/* Code panel */}
         {showCode && (
           <div className="w-96 bg-neutral-950 flex flex-col border-l border-neutral-800 shrink-0">
-            <div className="px-3 py-2 border-b border-neutral-800 flex items-center justify-between">
+            <div className="px-3 py-2 border-b border-neutral-800 flex items-center justify-between gap-2">
               <span className="text-[10px] text-neutral-500 font-mono">HTML</span>
-              <button
-                onClick={() => navigator.clipboard.writeText(html)}
-                className="text-[10px] text-neutral-500 hover:text-white"
-              >
-                copiar
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => navigator.clipboard.writeText(html)} className="text-[10px] text-neutral-500 hover:text-white">copiar</button>
+                <button
+                  onClick={() => { if (previewRef.current) setHtml(previewRef.current.innerHTML); }}
+                  className="text-[10px] text-violet-400 hover:text-violet-300"
+                >aplicar DOM→</button>
+              </div>
             </div>
             <textarea
               value={html}
