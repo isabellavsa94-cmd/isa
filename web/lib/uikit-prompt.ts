@@ -32,24 +32,26 @@ ${comboList}
 ## TIPOGRAFIA
     ${typoList}
 
-A fonte "Niveau Grotesk" está disponível no projeto como @font-face.
-A fonte "Poppins" deve ser carregada via Google Fonts (weights 400, 500, 600).
+A fonte "Niveau Grotesk" já está carregada via @font-face na página (use font-family: 'Niveau Grotesk', sans-serif).
+A fonte "Poppins" use via: @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap')
 
 ## ELEMENTOS GRÁFICOS DISPONÍVEIS
-Os arquivos abaixo estão em /uikit/${clientId}/elementos/:
+Os arquivos abaixo estão disponíveis como <img src="/uikit/${clientId}/elementos/{slug}.svg">
     ${elementoList}
 
-### Regra de uso de elementos:
-Prefira usar os elementos acima quando se encaixarem com o conteúdo do briefing.
-Se nenhum elemento disponível se encaixar, você PODE criar ou sugerir elementos
-visuais novos — desde que sigam o mesmo estilo: formas geométricas limpas,
-cores da paleta acima, traço fino, visual de dados/analytics/tech.
+Se nenhum elemento disponível se encaixar, crie formas geométricas com CSS puro
+(círculos, retângulos arredondados, gradientes) nas cores da paleta.
 
-## REGRAS GERAIS
-- Nunca use cores fora da paleta sem justificativa explícita.
-- Títulos sempre em Niveau Grotesk Bold.
-- Corpo de texto sempre em Poppins.
+## REGRAS GERAIS DE DESIGN
+- Títulos sempre em Niveau Grotesk Bold, corpo em Poppins.
 - Prefira as combinações de cores aprovadas para fundo + texto.
+- Use pills/badges arredondados (border-radius: 50px) para destacar palavras-chave — é a linguagem visual deste cliente.
 - O visual deve remeter a dados, performance e marketing digital.
+- Composições com texto grande e bold são preferidas. Hierarquia clara: 1 headline dominante + 1 apoio.
+- Margens internas de pelo menos 60px nas bordas do canvas.
+
+## SAÍDA ESPERADA
+Retorne SOMENTE HTML puro (sem markdown, sem \`\`\`html, sem explicações).
+O HTML deve ser um fragmento completo incluindo uma tag <style> e um div raiz com as dimensões corretas.
 `
 }
