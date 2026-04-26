@@ -24,6 +24,7 @@ type ElProps = {
   backgroundColor: string;
   fontSize: number;
   fontWeight: string;
+  textAlign: string;
   borderRadius: number;
   top: number;
   left: number;
@@ -33,6 +34,7 @@ type ElProps = {
   letterSpacing: number;
   lineHeight: string;
   padding: string;
+  rotation: number;
 };
 
 function rgbToHex(rgb: string): string {
@@ -43,6 +45,13 @@ function rgbToHex(rgb: string): string {
 
 function isTransparent(color: string) {
   return !color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)';
+}
+
+function getRotation(el: HTMLElement): number {
+  const t = el.style.transform;
+  if (!t) return 0;
+  const m = t.match(/rotate\((-?[\d.]+)deg\)/);
+  return m ? Math.round(parseFloat(m[1])) : 0;
 }
 
 export function EditorView() {
@@ -62,7 +71,6 @@ export function EditorView() {
   const isDragging = useRef(false);
   const dragData = useRef({ mx: 0, my: 0, elTop: 0, elLeft: 0 });
 
-  // Inject HTML into DOM directly (not via React state, to preserve edits)
   useEffect(() => {
     if (previewRef.current) previewRef.current.innerHTML = html;
   }, [html]);
@@ -90,7 +98,6 @@ export function EditorView() {
     return () => window.removeEventListener('resize', fitToScreen);
   }, [fitToScreen]);
 
-  // ── Read element properties ──────────────────────────────────────────────
   const readElProps = useCallback((el: HTMLElement) => {
     const cs = window.getComputedStyle(el);
     const artDiv = previewRef.current?.querySelector('div') as HTMLElement | null;
@@ -102,6 +109,7 @@ export function EditorView() {
       backgroundColor: isTransparent(cs.backgroundColor) ? 'transparent' : rgbToHex(cs.backgroundColor),
       fontSize: Math.round(parseFloat(cs.fontSize) / scale),
       fontWeight: cs.fontWeight,
+      textAlign: cs.textAlign || 'left',
       borderRadius: Math.round(parseFloat(cs.borderRadius) / scale) || 0,
       top: parentRect ? Math.round((elRect.top - parentRect.top) / scale) : 0,
       left: parentRect ? Math.round((elRect.left - parentRect.left) / scale) : 0,
@@ -111,10 +119,10 @@ export function EditorView() {
       letterSpacing: Math.round(parseFloat(cs.letterSpacing)) || 0,
       lineHeight: cs.lineHeight,
       padding: el.style.padding || '',
+      rotation: getRotation(el),
     });
   }, [scale]);
 
-  // ── Update element style ─────────────────────────────────────────────────
   const updateStyle = useCallback((prop: string, value: string) => {
     if (!selectedEl) return;
     (selectedEl.style as unknown as Record<string, string>)[prop] = value;
@@ -129,6 +137,39 @@ export function EditorView() {
     saveToStorage();
   }, [selectedEl, saveToStorage]);
 
+  const alignToArtboard = useCallback((dir: 'left'|'centerH'|'right'|'top'|'centerV'|'bottom') => {
+    if (!selectedEl || !elProps) return;
+    let l = elProps.left, t = elProps.top;
+    if (dir === 'left') l = 0;
+    else if (dir === 'centerH') l = Math.round((ART_W - elProps.width) / 2);
+    else if (dir === 'right') l = ART_W - elProps.width;
+    else if (dir === 'top') t = 0;
+    else if (dir === 'centerV') t = Math.round((artH - elProps.height) / 2);
+    else if (dir === 'bottom') t = artH - elProps.height;
+    selectedEl.style.position = 'absolute';
+    selectedEl.style.left = `${l}px`;
+    selectedEl.style.top = `${t}px`;
+    readElProps(selectedEl);
+    saveToStorage();
+  }, [selectedEl, elProps, artH, readElProps, saveToStorage]);
+
+  const centerElement = useCallback(() => {
+    if (!selectedEl || !elProps) return;
+    selectedEl.style.position = 'absolute';
+    selectedEl.style.left = `${Math.round((ART_W - elProps.width) / 2)}px`;
+    selectedEl.style.top = `${Math.round((artH - elProps.height) / 2)}px`;
+    readElProps(selectedEl);
+    saveToStorage();
+  }, [selectedEl, elProps, artH, readElProps, saveToStorage]);
+
+  const removeRotation = useCallback(() => {
+    if (!selectedEl) return;
+    const t = selectedEl.style.transform || '';
+    selectedEl.style.transform = t.replace(/rotate\([^)]+\)/g, '').trim();
+    readElProps(selectedEl);
+    saveToStorage();
+  }, [selectedEl, readElProps, saveToStorage]);
+
   // ── Click to select ──────────────────────────────────────────────────────
   const handlePreviewClick = useCallback((e: MouseEvent) => {
     if (!editMode) return;
@@ -136,8 +177,7 @@ export function EditorView() {
     const artDiv = previewRef.current?.querySelector('div');
     if (!artDiv || target === artDiv || target === previewRef.current) {
       selectedEl?.style.setProperty('outline', '');
-      setSelectedEl(null);
-      setElProps(null);
+      setSelectedEl(null); setElProps(null);
       return;
     }
     e.stopPropagation();
@@ -151,16 +191,14 @@ export function EditorView() {
   // ── Drag to move ─────────────────────────────────────────────────────────
   const handleMouseDown = useCallback((e: MouseEvent) => {
     if (!editMode || !selectedEl) return;
-    const target = e.target as HTMLElement;
-    if (target !== selectedEl) return;
+    if ((e.target as HTMLElement) !== selectedEl) return;
     e.preventDefault();
     isDragging.current = true;
     const artDiv = previewRef.current?.querySelector('div') as HTMLElement;
     const parentRect = artDiv?.getBoundingClientRect();
     const elRect = selectedEl.getBoundingClientRect();
     dragData.current = {
-      mx: e.clientX,
-      my: e.clientY,
+      mx: e.clientX, my: e.clientY,
       elTop: (elRect.top - parentRect.top) / scale,
       elLeft: (elRect.left - parentRect.left) / scale,
     };
@@ -187,7 +225,6 @@ export function EditorView() {
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [selectedEl, scale, readElProps, saveToStorage]);
 
-  // Attach/detach click handlers when editMode changes
   useEffect(() => {
     const el = previewRef.current;
     if (!el) return;
@@ -200,8 +237,7 @@ export function EditorView() {
       el.removeEventListener('mousedown', handleMouseDown);
       el.style.cursor = '';
       selectedEl?.style.setProperty('outline', '');
-      setSelectedEl(null);
-      setElProps(null);
+      setSelectedEl(null); setElProps(null);
       saveToStorage();
     }
     return () => {
@@ -242,16 +278,14 @@ export function EditorView() {
 
   const exportPNG = async () => {
     if (!previewRef.current) return;
-    setEditMode(false);
-    setExporting(true);
+    setEditMode(false); setExporting(true);
     try {
       const { toPng } = await import('html-to-image');
       const artEl = (previewRef.current.querySelector('div') ?? previewRef.current) as HTMLElement;
       const dataUrl = await toPng(artEl, { width: ART_W, height: artH, pixelRatio: 2, style: { transform: 'none' } });
       const a = document.createElement('a');
       a.download = `arte-${Date.now()}.png`;
-      a.href = dataUrl;
-      a.click();
+      a.href = dataUrl; a.click();
     } catch (err) { console.error(err); }
     finally { setExporting(false); }
   };
@@ -262,7 +296,7 @@ export function EditorView() {
     setHtml(DEFAULT_HTML); setArtH(1536);
   };
 
-  // ── Properties panel ─────────────────────────────────────────────────────
+  const elLabel = elProps?.text?.trim().slice(0, 22) || 'Elemento';
   const hasBackground = elProps && elProps.backgroundColor !== 'transparent';
 
   return (
@@ -272,16 +306,14 @@ export function EditorView() {
         <h1 className="text-sm font-medium mr-1">Editor</h1>
 
         <button onClick={() => generate('layout')} disabled={generating !== null}
-          className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
-          title="Claude gera HTML/CSS editável">
+          className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5">
           {generating === 'layout'
             ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando…</>
             : '✦ Gerar layout'}
         </button>
 
         <button onClick={() => generate('image')} disabled={generating !== null}
-          className="text-xs px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
-          title="GPT Image 2 gera imagem pixel-perfect">
+          className="text-xs px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5">
           {generating === 'image'
             ? <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando…</>
             : '🖼 Gerar imagem'}
@@ -336,126 +368,151 @@ export function EditorView() {
 
         {/* Properties panel */}
         {editMode && (
-          <div className="w-64 bg-neutral-950 border-l border-neutral-800 flex flex-col shrink-0 overflow-y-auto">
+          <div className="w-64 bg-[#111] border-l border-neutral-800 flex flex-col shrink-0 overflow-y-auto text-white">
+            {/* Panel header */}
+            <div className="px-4 pt-4 pb-3 border-b border-neutral-800">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-neutral-500 font-semibold">Propriedades</p>
+              {elProps && (
+                <p className="text-[11px] text-neutral-300 mt-0.5 truncate">{elLabel}</p>
+              )}
+            </div>
+
             {!elProps ? (
               <div className="flex-1 flex items-center justify-center p-6 text-center">
                 <p className="text-xs text-neutral-600 leading-relaxed">Clique em um elemento no canvas para editar suas propriedades.</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-0 divide-y divide-neutral-800">
-                {/* Text */}
-                <Section label="Texto">
-                  <textarea
-                    value={elProps.text}
-                    onChange={e => updateText(e.target.value)}
-                    rows={3}
-                    className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  />
-                </Section>
+              <>
+                {/* Fields */}
+                <div className="px-4 py-1 flex flex-col">
 
-                {/* Typography */}
-                <Section label="Tipografia">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Tamanho">
-                      <input type="number" value={elProps.fontSize} min={8} max={300}
-                        onChange={e => updateStyle('fontSize', e.target.value + 'px')}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                    <Field label="Peso">
-                      <select value={elProps.fontWeight}
-                        onChange={e => updateStyle('fontWeight', e.target.value)}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none">
-                        <option value="400">400</option>
-                        <option value="500">500</option>
-                        <option value="600">600</option>
-                        <option value="700">700</option>
-                        <option value="800">800</option>
-                        <option value="900">900</option>
-                      </select>
-                    </Field>
-                  </div>
-                  <Field label="Espaçamento letras">
-                    <input type="number" value={elProps.letterSpacing}
-                      onChange={e => updateStyle('letterSpacing', e.target.value + 'px')}
-                      className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                  </Field>
-                </Section>
+                  <Row label="X">
+                    <NumInput value={elProps.left}
+                      onChange={v => { updateStyle('position', 'absolute'); updateStyle('left', v + 'px'); }} />
+                  </Row>
+                  <Row label="Y">
+                    <NumInput value={elProps.top}
+                      onChange={v => { updateStyle('position', 'absolute'); updateStyle('top', v + 'px'); }} />
+                  </Row>
+                  <Row label="Rotação">
+                    <NumInput value={elProps.rotation}
+                      onChange={v => {
+                        const t = selectedEl?.style.transform ?? '';
+                        const clean = t.replace(/rotate\([^)]+\)/g, '').trim();
+                        updateStyle('transform', `${clean} rotate(${v}deg)`.trim());
+                      }} />
+                  </Row>
 
-                {/* Colors */}
-                <Section label="Cores">
-                  <Field label="Cor do texto">
+                  <Divider />
+
+                  <Row label="Texto">
+                    <input type="text" value={elProps.text} onChange={e => updateText(e.target.value)}
+                      className="w-full bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                  </Row>
+                  <Row label="Tamanho">
+                    <NumInput value={elProps.fontSize} min={8} max={400}
+                      onChange={v => updateStyle('fontSize', v + 'px')} />
+                  </Row>
+                  <Row label="Peso">
+                    <select value={elProps.fontWeight} onChange={e => updateStyle('fontWeight', e.target.value)}
+                      className="w-full bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 focus:outline-none appearance-none cursor-pointer">
+                      <option value="400">400 — Regular</option>
+                      <option value="500">500 — Medium</option>
+                      <option value="600">600 — SemiBold</option>
+                      <option value="700">700 — Bold</option>
+                      <option value="800">800 — ExtraBold</option>
+                      <option value="900">900 — Black</option>
+                    </select>
+                  </Row>
+                  <Row label="Espaçamento">
+                    <NumInput value={elProps.letterSpacing}
+                      onChange={v => updateStyle('letterSpacing', v + 'px')} />
+                  </Row>
+                  <Row label="Alinhamento">
+                    <select value={elProps.textAlign} onChange={e => updateStyle('textAlign', e.target.value)}
+                      className="w-full bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 focus:outline-none appearance-none cursor-pointer">
+                      <option value="left">Esquerda</option>
+                      <option value="center">Centro</option>
+                      <option value="right">Direita</option>
+                      <option value="justify">Justificado</option>
+                    </select>
+                  </Row>
+
+                  <Divider />
+
+                  <Row label="Cor">
                     <ColorInput value={elProps.color} onChange={v => updateStyle('color', v)} />
-                  </Field>
-                  <Field label="Fundo">
-                    <div className="flex gap-1.5 items-center">
+                  </Row>
+                  <Row label="Fundo">
+                    <div className="flex items-center gap-1.5">
                       <ColorInput
                         value={hasBackground ? elProps.backgroundColor : '#ffffff'}
                         onChange={v => updateStyle('backgroundColor', v)}
                       />
                       {hasBackground && (
                         <button onClick={() => updateStyle('backgroundColor', 'transparent')}
-                          className="text-[10px] text-neutral-500 hover:text-white whitespace-nowrap">remover</button>
+                          className="text-[9px] text-neutral-600 hover:text-neutral-400 whitespace-nowrap shrink-0">×</button>
                       )}
                     </div>
-                  </Field>
-                </Section>
+                  </Row>
+                  <Row label="Opacidade">
+                    <input type="range" min={0} max={100} value={Math.round(elProps.opacity * 100)}
+                      onChange={e => updateStyle('opacity', String(parseInt(e.target.value) / 100))}
+                      className="w-full h-1.5 rounded-full accent-blue-500 cursor-pointer" />
+                  </Row>
 
-                {/* Position & Size */}
-                <Section label="Posição">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Top">
-                      <input type="number" value={elProps.top}
-                        onChange={e => { updateStyle('position', 'absolute'); updateStyle('top', e.target.value + 'px'); }}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                    <Field label="Left">
-                      <input type="number" value={elProps.left}
-                        onChange={e => { updateStyle('position', 'absolute'); updateStyle('left', e.target.value + 'px'); }}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                    <Field label="Largura">
-                      <input type="number" value={elProps.width}
-                        onChange={e => updateStyle('width', e.target.value + 'px')}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                    <Field label="Altura">
-                      <input type="number" value={elProps.height}
-                        onChange={e => updateStyle('height', e.target.value + 'px')}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                  </div>
-                </Section>
+                  <Divider />
 
-                {/* Shape */}
-                <Section label="Forma">
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field label="Arredond.">
-                      <input type="number" value={elProps.borderRadius} min={0}
-                        onChange={e => updateStyle('borderRadius', e.target.value + 'px')}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                    <Field label="Opacidade">
-                      <input type="number" value={Math.round(elProps.opacity * 100)} min={0} max={100}
-                        onChange={e => updateStyle('opacity', String(parseInt(e.target.value) / 100))}
-                        className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                    </Field>
-                  </div>
-                  <Field label="Padding">
-                    <input type="text" value={elProps.padding} placeholder="ex: 16px 32px"
+                  <Row label="Arredond.">
+                    <NumInput value={elProps.borderRadius} min={0}
+                      onChange={v => updateStyle('borderRadius', v + 'px')} />
+                  </Row>
+                  <Row label="Padding">
+                    <input type="text" value={elProps.padding} placeholder="16px 32px"
                       onChange={e => updateStyle('padding', e.target.value)}
-                      className="w-full bg-neutral-900 text-xs text-white rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-500" />
-                  </Field>
-                </Section>
+                      className="w-full bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                  </Row>
+                </div>
 
-                <div className="p-3">
+                {/* Alinhar no Artboard */}
+                <div className="px-4 pt-3 pb-2 border-t border-neutral-800 mt-2">
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-neutral-500 font-semibold mb-2">Alinhar no Artboard</p>
+                  <div className="grid grid-cols-3 gap-1 mb-1.5">
+                    {([
+                      ['left',    '←', 'Alinhar à esquerda'],
+                      ['centerH', '↔', 'Centralizar horizontal'],
+                      ['right',   '→', 'Alinhar à direita'],
+                      ['top',     '↑', 'Alinhar ao topo'],
+                      ['centerV', '↕', 'Centralizar vertical'],
+                      ['bottom',  '↓', 'Alinhar à base'],
+                    ] as [Parameters<typeof alignToArtboard>[0], string, string][]).map(([dir, icon, title]) => (
+                      <button key={dir} title={title} onClick={() => alignToArtboard(dir)}
+                        className="h-9 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm flex items-center justify-center transition-colors">
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button onClick={centerElement}
+                      className="h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-[11px] text-neutral-300 transition-colors">
+                      Centralizar
+                    </button>
+                    <button onClick={removeRotation}
+                      className="h-8 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-[11px] text-neutral-300 transition-colors">
+                      Sem rotação
+                    </button>
+                  </div>
+                </div>
+
+                {/* Resetar camada */}
+                <div className="px-4 py-3 border-t border-neutral-800">
                   <button
                     onClick={() => { selectedEl?.remove(); setSelectedEl(null); setElProps(null); saveToStorage(); }}
-                    className="w-full text-xs text-red-500 hover:text-red-400 border border-red-900 hover:border-red-700 rounded py-1.5 transition-colors"
-                  >
-                    Remover elemento
+                    className="w-full text-sm text-red-500 hover:text-red-400 font-medium py-1 transition-colors">
+                    Resetar camada
                   </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
         )}
@@ -481,35 +538,42 @@ export function EditorView() {
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Sub-components ──────────────────────────────────────────────────────────
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="px-3 py-3 flex flex-col gap-2">
-      <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold">{label}</p>
-      {children}
+    <div className="flex items-center gap-2 py-1.5">
+      <span className="text-[11px] text-neutral-500 w-20 shrink-0">{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Divider() {
+  return <div className="border-t border-neutral-800/60 my-1" />;
+}
+
+function NumInput({ value, onChange, min, max }: {
+  value: number; onChange: (v: number) => void; min?: number; max?: number;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[9px] text-neutral-600">{label}</span>
-      {children}
-    </div>
+    <input type="number" value={value} min={min} max={max}
+      onChange={e => onChange(Number(e.target.value))}
+      className="w-full bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-violet-500 tabular-nums" />
   );
 }
 
 function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const hex = value.startsWith('#') ? value : '#000000';
   return (
-    <div className="flex items-center gap-1.5">
-      <input type="color" value={value.startsWith('#') ? value : '#000000'}
-        onChange={e => onChange(e.target.value)}
-        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0" />
-      <input type="text" value={value}
-        onChange={e => onChange(e.target.value)}
-        className="flex-1 bg-neutral-900 text-xs text-white rounded px-2 py-1 font-mono focus:outline-none focus:ring-1 focus:ring-violet-500" />
+    <div className="flex items-center gap-2">
+      <label className="w-7 h-7 rounded-md border border-neutral-700 cursor-pointer shrink-0 overflow-hidden"
+        style={{ backgroundColor: hex }}>
+        <input type="color" value={hex} onChange={e => onChange(e.target.value)}
+          className="opacity-0 w-full h-full cursor-pointer" />
+      </label>
+      <input type="text" value={value} onChange={e => onChange(e.target.value)}
+        className="flex-1 bg-neutral-800 text-[11px] text-white rounded-lg px-2.5 py-1.5 font-mono focus:outline-none focus:ring-1 focus:ring-violet-500" />
     </div>
   );
 }
