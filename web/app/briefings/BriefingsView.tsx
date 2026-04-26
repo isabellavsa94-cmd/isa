@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Briefing, BriefingFormat, Client } from '@/lib/types';
+import { CLIENT_UIKITS } from '@/lib/uikit';
 import { BriefingEditor } from './BriefingEditor';
 import { createClient } from '@/lib/supabase/client';
 import { Dock } from './Dock';
@@ -1023,38 +1024,88 @@ export function BriefingsView({
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-8">
-          <div className="max-w-2xl">
-            <p className="text-xs text-neutral-500 mb-6">UI Kit de <span className="text-white">{activeClient?.name}</span></p>
-            <div className="flex flex-col gap-6">
-              {/* Colors placeholder */}
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Cores</p>
-                <div className="flex gap-3">
-                  {['#111111', '#FFFFFF', '#F5F5F5', '#E5E5E5'].map((c) => (
-                    <div key={c} className="flex flex-col items-center gap-1.5">
-                      <div className="w-10 h-10 rounded-lg border border-neutral-800" style={{ background: c }} />
-                      <span className="text-[9px] text-neutral-600 font-mono">{c}</span>
-                    </div>
-                  ))}
+          {(() => {
+            const uikit = activeClientId ? CLIENT_UIKITS[activeClientId] : null;
+            if (!uikit) return (
+              <p className="text-xs text-neutral-600">UI Kit não configurado para este cliente.</p>
+            );
+            return (
+              <div className="max-w-3xl flex flex-col gap-8">
+                <p className="text-xs text-neutral-500">UI Kit de <span className="text-white">{activeClient?.name}</span></p>
+
+                {/* Paleta de cores */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Paleta de cores</p>
+                  <div className="flex flex-wrap gap-3">
+                    {uikit.colors.map((c) => (
+                      <div key={c.hex} className="flex flex-col items-center gap-1.5">
+                        <div className="w-12 h-12 rounded-xl border border-neutral-800" style={{ background: c.hex }} />
+                        <span className="text-[9px] text-neutral-500 font-mono">{c.hex}</span>
+                        <span className="text-[8px] text-neutral-600">{c.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cores de fundo */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Cores de fundo</p>
+                  <div className="flex flex-wrap gap-3">
+                    {uikit.backgrounds.map((c) => (
+                      <div key={c.hex} className="flex flex-col items-center gap-1.5">
+                        <div className="w-12 h-12 rounded-xl border border-neutral-800" style={{ background: c.hex }} />
+                        <span className="text-[9px] text-neutral-500 font-mono">{c.hex}</span>
+                        <span className="text-[8px] text-neutral-600">{c.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Combinações */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Combinações de cores</p>
+                  <div className="flex flex-wrap gap-2">
+                    {uikit.colorCombos.map(([c1, c2], i) => (
+                      <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 flex">
+                        <div className="flex-1" style={{ background: c1 }} />
+                        <div className="flex-1" style={{ background: c2 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tipografia */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Tipografia</p>
+                  <div className="flex flex-col gap-2">
+                    {uikit.typography.map((t) => (
+                      <div key={t.role} className="flex items-baseline gap-4">
+                        <span className="text-[9px] text-neutral-600 w-20 shrink-0">{t.role}</span>
+                        <span className="text-sm text-white font-medium">{t.fontFamily}</span>
+                        <span className="text-[9px] text-neutral-600">{t.weight} · {t.sizePx}px</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Elementos gráficos */}
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Elementos gráficos</p>
+                  <div className="grid grid-cols-8 gap-2">
+                    {uikit.elementos.map((slug) => (
+                      <div key={slug} className="w-12 h-12 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center p-1.5">
+                        <img
+                          src={`/uikit/reportei-flux/elementos/${slug}.svg`}
+                          alt={slug}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-
-              {/* Typography placeholder */}
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-3">Tipografia</p>
-                <div className="space-y-2 text-neutral-400">
-                  <p className="text-2xl font-bold text-white">Título principal</p>
-                  <p className="text-base font-medium">Subtítulo</p>
-                  <p className="text-sm">Corpo do texto</p>
-                  <p className="text-xs text-neutral-500">Legenda / auxiliar</p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-neutral-800">
-                <p className="text-xs text-neutral-600">Em breve: upload de assets, guia de voz e componentes visuais.</p>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       )}
 

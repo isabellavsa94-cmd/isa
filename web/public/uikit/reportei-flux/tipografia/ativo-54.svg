@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Camada_2" data-name="Camada 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1545.55 738.39">
+  <g id="Camada_1-2" data-name="Camada 1">
+    <g>
+      <text transform="translate(51.03 191.51)" fill="#492775" font-family="NiveauGroteskBold, &apos;Niveau Grotesk&apos;" font-size="125"><tspan x="0" y="0" letter-spacing="0em">H</tspan><tspan x="91.75" y="0">eadline 1</tspan></text>
+      <g>
+        <text transform="translate(194.74 542.33)" fill="#492775" font-family="NiveauGroteskBold, &apos;Niveau Grotesk&apos;" font-size="62"><tspan x="0" y="0" letter-spacing="0em">H</tspan><tspan x="45.51" y="0">eadline 4</tspan></text>
+        <text transform="translate(278.86 601.36)" fill="#492775" font-family="Poppins-Regular, Poppins" font-size="42"><tspan x="0" y="0">body</tspan><tspan x="107.31" y="0" letter-spacing="-.03em"> </tspan><tspan x="118.52" y="0">2</tspan></text>
+      </g>
+      <g>
+        <text transform="translate(975 547.85)" fill="#492775" font-family="NiveauGroteskBold, &apos;Niveau Grotesk&apos;" font-size="80"><tspan x="0" y="0" letter-spacing="0em">H</tspan><tspan x="58.72" y="0">eadline 3</tspan></text>
+        <text transform="translate(1082.03 620.1)" fill="#492775" font-family="Poppins-Regular, Poppins" font-size="53"><tspan x="0" y="0">Body</tspan><tspan x="132.07" y="0" letter-spacing="-.03em"> </tspan><tspan x="146.23" y="0">1</tspan></text>
+      </g>
+      <g>
+        <text transform="translate(1035.27 233.45)" fill="#492775" font-family="Poppins-Regular, Poppins" font-size="70"><tspan x="0" y="0">Subtitle</tspan></text>
+        <text transform="translate(930.82 142.67)" fill="#492775" font-family="NiveauGroteskBold, &apos;Niveau Grotesk&apos;" font-size="99"><tspan x="0" y="0" letter-spacing="-.01em">H</tspan><tspan x="72.67" y="0">eadline 2</tspan></text>
+      </g>
+      <line x1="1545.55" y1="369.19" y2="369.19" fill="#e52c91" stroke="#e52c91" stroke-miterlimit="10" stroke-width="3"/>
+      <line x1="772" y1="738.39" x2="772" fill="#e52c91" stroke="#e52c91" stroke-miterlimit="10" stroke-width="3"/>
+    </g>
+  </g>
+</svg>
