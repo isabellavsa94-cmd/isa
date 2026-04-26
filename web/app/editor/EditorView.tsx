@@ -167,6 +167,8 @@ export function EditorView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
   const [, forceRender] = useState(0);
+  const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -398,11 +400,52 @@ export function EditorView() {
     setSelectedId(null);
   };
 
+  const generateWithAI = async () => {
+    setGenerating(true);
+    setAiError(null);
+    try {
+      const savedBriefing = localStorage.getItem('myplatform_active_briefing');
+      const briefing = savedBriefing ? JSON.parse(savedBriefing) : {};
+      const res = await fetch('/api/generate-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          briefing,
+          clientId: briefing.client_id ?? 'reportei-flux',
+          clientName: briefing.client_name ?? 'Reportei Flux',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido');
+      if (Array.isArray(data.layers) && data.layers.length > 0) {
+        setLayers(data.layers as EditorLayer[]);
+        setSelectedId(null);
+      } else {
+        throw new Error('A IA não retornou layers válidos');
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Erro ao gerar');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <main className="flex-1 min-h-screen flex flex-col bg-neutral-100">
       <header className="border-b border-neutral-200 bg-white px-4 py-2 flex items-center justify-between gap-3">
         <h1 className="text-sm font-medium">Editor de arte</h1>
         <div className="flex items-center gap-2">
+          <button
+            onClick={generateWithAI}
+            disabled={generating}
+            className="text-xs px-3 py-1 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50 disabled:cursor-wait flex items-center gap-1.5"
+          >
+            {generating ? (
+              <><span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Gerando...</>
+            ) : '✦ Gerar com IA'}
+          </button>
+          {aiError && <span className="text-xs text-red-500">{aiError}</span>}
+          <div className="w-px h-5 bg-neutral-200 mx-1" />
           <button onClick={addText} className="text-xs px-2 py-1 border border-neutral-200 rounded hover:bg-neutral-50">+ Texto</button>
           <button onClick={addRect} className="text-xs px-2 py-1 border border-neutral-200 rounded hover:bg-neutral-50">+ Forma</button>
           <button onClick={addImage} className="text-xs px-2 py-1 border border-neutral-200 rounded hover:bg-neutral-50">+ Imagem</button>
