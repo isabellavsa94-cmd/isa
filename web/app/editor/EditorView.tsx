@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const ART_W = 1080;
+const ART_W = 1024;
 const STORAGE_KEY = 'myplatform_editor_html';
 
 const DEFAULT_HTML = `<style>
   @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
 </style>
-<div style="width:1080px;height:1350px;position:relative;overflow:hidden;background:#fff2fa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:80px;">
+<div style="width:1024px;height:1536px;position:relative;overflow:hidden;background:#fff2fa;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;padding:80px;">
   <h1 style="font-family:'Niveau Grotesk',sans-serif;font-weight:700;font-size:96px;color:#492775;text-align:center;line-height:1.1;word-wrap:break-word;width:100%;">
     Clique em "Gerar com IA"
   </h1>
@@ -21,7 +21,7 @@ const DEFAULT_HTML = `<style>
 export function EditorView() {
   const [html, setHtml] = useState(DEFAULT_HTML);
   const [scale, setScale] = useState(0.35);
-  const [artH, setArtH] = useState(1350);
+  const [artH, setArtH] = useState(1536);
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(false);
@@ -98,9 +98,7 @@ export function EditorView() {
     try {
       const savedBriefing = localStorage.getItem('myplatform_active_briefing');
       const briefing = savedBriefing ? JSON.parse(savedBriefing) : {};
-      const isVertical = briefing.format === 'Reels' || briefing.format === 'Stories';
-      const newH = isVertical ? 1920 : 1350;
-      setArtH(newH);
+      setArtH(1536);
 
       const res = await fetch('/api/generate-layout', {
         method: 'POST',

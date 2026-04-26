@@ -1,5 +1,43 @@
 import { CLIENT_UIKITS, type UIKitData } from './uikit'
 
+export function buildImagePrompt(clientId: string, clientName: string, briefing: Record<string, string>, artW: number, artH: number): string {
+  const kit = CLIENT_UIKITS[clientId]
+
+  const colorDesc = kit
+    ? `Brand colors: hot magenta/pink (${kit.colors[0].hex}), royal blue (${kit.colors[1].hex}), light pink (${kit.colors[2].hex}), dark navy (${kit.colors[3].hex}), soft sky blue (${kit.colors[4].hex}), deep purple (${kit.colors[5].hex}). Typical backgrounds: warm white (${kit.backgrounds[0].hex}) or deep purple (${kit.backgrounds[3].hex}).`
+    : `Brand: ${clientName}.`
+
+  const styleDesc = kit
+    ? `Visual style: modern Brazilian social media design, bold large typography, pill-shaped colored badges/tags highlighting key words, clean geometric shapes, data & analytics aesthetic. Headlines dominant, hierarchy clear. Rounded corners everywhere. Colors pop against light or dark backgrounds.`
+    : ''
+
+  const format = briefing.format ?? 'Feed'
+  const title = briefing.nome_demanda ?? ''
+  const concept = briefing.conceito ?? ''
+  const description = briefing.descricao_peca ?? ''
+
+  return `Social media ${format} post (${artW}x${artH}px) for "${clientName}", a marketing analytics SaaS platform targeting Brazilian social media managers and agencies.
+
+${colorDesc}
+${styleDesc}
+
+Content to communicate:
+- Main message/title: ${title}
+- Concept: ${concept}
+- Visual description: ${description}
+
+Design requirements:
+- Use the brand color palette strictly
+- Large bold headline text, easy to read at small sizes
+- Pill/badge shapes with rounded ends for highlighted words or CTAs
+- Professional yet approachable — speak to busy social media managers
+- No photorealistic people unless the briefing explicitly requests it
+- No logos, no website URLs, no external brand marks
+- High contrast, visually striking, scroll-stopping
+- The text in the image must be in Brazilian Portuguese
+- Aspect ratio must match the canvas exactly: ${artW}x${artH}px portrait format`
+}
+
 export function buildUIKitPrompt(clientId: string, clientName: string): string {
   const kit: UIKitData | undefined = CLIENT_UIKITS[clientId]
 
