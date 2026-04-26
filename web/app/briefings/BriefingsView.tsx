@@ -838,7 +838,111 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
   );
 }
 
-type ClientTab = 'briefings' | 'uikit';
+type ClientTab = 'briefings' | 'uikit' | 'refs';
+
+type ClientRef = { id: string; title: string | null; media_path: string | null; notes: string | null; created_at: string };
+
+function ClientRefs({ clientId }: { clientId: string | null }) {
+  const supabase = createClient();
+  const [refs, setRefs] = useState<ClientRef[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [title, setTitle] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!clientId) return;
+    supabase.from('refs').select('id,title,media_path,notes,created_at').eq('client_id', clientId).order('created_at', { ascending: false }).then(({ data }) => {
+      setRefs((data ?? []) as ClientRef[]);
+    });
+  }, [clientId]);
+
+  const getUrl = (path: string) =>
+    `${SUPABASE_URL_BASE}/storage/v1/object/public/media/${path}`;
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !clientId) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `client-refs/${clientId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('media').upload(path, file);
+      if (upErr) throw upErr;
+      const { data, error: dbErr } = await supabase.from('refs').insert({
+        client_id: clientId,
+        type: 'image',
+        media_path: path,
+        title: title.trim() || file.name,
+        tags: [],
+        metadata: {},
+      }).select('id,title,media_path,notes,created_at').single();
+      if (dbErr) throw dbErr;
+      setRefs((r) => [data as ClientRef, ...r]);
+      setTitle('');
+      e.target.value = '';
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (ref: ClientRef) => {
+    if (!confirm('Remover referência?')) return;
+    if (ref.media_path) await supabase.storage.from('media').remove([ref.media_path]);
+    await supabase.from('refs').delete().eq('id', ref.id);
+    setRefs((r) => r.filter((x) => x.id !== ref.id));
+  };
+
+  if (!clientId) return <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">Selecione um cliente.</div>;
+
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto px-6 py-8">
+      <div className="max-w-4xl">
+        <div className="flex items-end gap-3 mb-6">
+          <div className="flex-1">
+            <p className="text-[9px] uppercase tracking-widest text-neutral-600 font-semibold mb-1.5">Título (opcional)</p>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex: Post feed roxo com texto"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+            />
+          </div>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="text-xs px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {uploading ? 'Enviando…' : '+ Adicionar peça'}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+        </div>
+
+        {refs.length === 0 ? (
+          <p className="text-xs text-neutral-600">Nenhuma referência ainda. Adicione peças aprovadas para a IA usar como base.</p>
+        ) : (
+          <div className="grid grid-cols-4 gap-4">
+            {refs.map((ref) => (
+              <div key={ref.id} className="group relative rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800">
+                {ref.media_path && (
+                  <img src={getUrl(ref.media_path)} alt={ref.title ?? ''} className="w-full aspect-[4/5] object-cover" />
+                )}
+                <div className="p-2">
+                  <p className="text-[10px] text-neutral-400 truncate">{ref.title ?? 'Sem título'}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(ref)}
+                  className="absolute top-2 right-2 w-6 h-6 bg-black/70 rounded-full text-neutral-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function BriefingsView({
   briefings: initialBriefings,
@@ -985,6 +1089,16 @@ export function BriefingsView({
           >
             UI Kit
           </button>
+          <button
+            onClick={() => setClientTab('refs')}
+            className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px ${
+              clientTab === 'refs'
+                ? 'border-white text-white font-semibold'
+                : 'border-transparent text-neutral-500 hover:text-neutral-300'
+            }`}
+          >
+            Referências
+          </button>
 
           {clientTab === 'briefings' && (
             <>
@@ -1037,6 +1151,8 @@ export function BriefingsView({
             </div>
           </button>
         </div>
+      ) : clientTab === 'refs' ? (
+        <ClientRefs clientId={activeClientId} />
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-8">
           {(() => {
