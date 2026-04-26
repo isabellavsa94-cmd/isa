@@ -53,3 +53,55 @@ export type Collection = {
 export type RefWithCollection = Ref & {
   collections: { name: string } | null;
 };
+
+// Editor de imagem — layers
+type BaseLayer = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  angle: number;
+  visible: boolean;
+  locked?: boolean;
+};
+
+export type RectLayer = BaseLayer & {
+  type: 'rect';
+  w: number;
+  h: number;
+  fill: string;
+  rx: number;
+};
+
+export type TextLayer = BaseLayer & {
+  type: 'text';
+  text: string;
+  fill: string;
+  fontSize: number;
+  fontWeight: number;
+  anchor: 'start' | 'middle' | 'end';
+  letterSpacing: number;
+};
+
+export type ImageLayer = BaseLayer & {
+  type: 'image';
+  w: number;
+  h: number;
+  src: string;
+  scale?: number;
+};
+
+export type EditorLayer = RectLayer | TextLayer | ImageLayer;
+
+// Prompts
+export type Prompt = {
+  id: string;
+  title: string;
+  content: string;
+  category: string | null;
+  description: string | null;
+  image_url: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+};

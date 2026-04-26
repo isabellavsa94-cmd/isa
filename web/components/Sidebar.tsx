@@ -8,7 +8,7 @@ export async function Sidebar({
   activeSection = 'refs',
 }: {
   activeCollection?: string;
-  activeSection?: 'refs' | 'briefings';
+  activeSection?: 'refs' | 'briefings' | 'editor' | 'prompts';
 }) {
   const supabase = await createClient();
   const { data } = await supabase.from('collections').select('*').order('name');
