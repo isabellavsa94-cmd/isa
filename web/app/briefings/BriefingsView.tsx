@@ -1503,10 +1503,14 @@ export function BriefingsView({
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
-  const availableMonths = [...new Set(initialBriefings.map((b) => parseMonthKey(b.data_publicacao)))]
+  const availableMonths = [...new Set(briefings.map((b) => parseMonthKey(b.data_publicacao)))]
     .sort((a, b) => a === 'sem-data' ? 1 : b === 'sem-data' ? -1 : a.localeCompare(b));
   const defaultMonth = availableMonths.find((k) => k !== 'sem-data') ?? 'todos';
-  const [activeMonth, setActiveMonth] = useState<string>(availableMonths.length > 0 ? defaultMonth : 'todos');
+  const [activeMonth, setActiveMonth] = useState<string>(() => {
+    const months = [...new Set(initialBriefings.map((b) => parseMonthKey(b.data_publicacao)))]
+      .sort((a, b) => a === 'sem-data' ? 1 : b === 'sem-data' ? -1 : a.localeCompare(b));
+    return months.find((k) => k !== 'sem-data') ?? 'todos';
+  });
 
   useEffect(() => {
     if (!clientDropdownOpen) return;
@@ -1532,6 +1536,7 @@ export function BriefingsView({
 
   const handleCreated = (b: Briefing) => {
     setBriefings((prev) => [b, ...prev]);
+    setActiveMonth(parseMonthKey(b.data_publicacao));
     setModalOpen(false);
   };
 
