@@ -1596,9 +1596,8 @@ export function BriefingsView({
     return parseDate(a.data_publicacao) - parseDate(b.data_publicacao);
   });
 
-  const downloadMonthPdf = async () => {
-    const { default: jsPDF } = await import('jspdf');
-    const monthBriefings = briefings
+  const downloadMonthPdf = () => {
+    const monthBriefings = [...briefings]
       .filter((b) => activeMonth === 'todos' || parseMonthKey(b.data_publicacao) === activeMonth)
       .sort((a, b) => {
         if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
@@ -1609,164 +1608,80 @@ export function BriefingsView({
 
     const clientName = activeClient?.name ?? 'Briefings';
     const monthLabel = activeMonth === 'todos' ? 'Todos os meses' : monthKeyLabel(activeMonth);
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const W = 210;
-    const margin = 18;
-    const contentW = W - margin * 2;
-    let y = 0;
 
-    const addPage = () => {
-      doc.addPage();
-      y = margin;
+    const field = (label: string, value: string | null) => {
+      if (!value) return '';
+      const clean = stripHtml(value).trim();
+      if (!clean) return '';
+      return `
+        <div class="field">
+          <div class="field-label">${label}</div>
+          <div class="field-value">${clean.replace(/\n/g, '<br>')}</div>
+        </div>`;
     };
 
-    const checkY = (needed: number) => {
-      if (y + needed > 277) addPage();
-    };
+    const cards = monthBriefings.map((b, idx) => `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-num">#${idx + 1}</span>
+          ${b.format ? `<span class="card-format">${b.format}</span>` : ''}
+          ${b.data_publicacao ? `<span class="card-date">${b.data_publicacao}</span>` : ''}
+        </div>
+        <h2 class="card-title">${b.nome_demanda}</h2>
+        ${b.canal || b.etapa_funil ? field('Canal / Funil', [b.canal, b.etapa_funil].filter(Boolean).join(' · ')) : ''}
+        ${field('Conceito', b.conceito)}
+        ${field('Descrição da peça', b.descricao_peca)}
+        ${b.format === 'Reels' ? field('Fala', b.reels_fala) : ''}
+        ${b.format === 'Reels' ? field('Tela', b.reels_tela) : ''}
+        ${b.format === 'Reels' ? field('Visual', b.reels_visual) : ''}
+        ${field('Legenda', b.legenda)}
+        ${b.hashtags?.length ? field('Hashtags', b.hashtags.join(' ')) : ''}
+        ${b.referencia_arte ? field('Referência', b.referencia_arte) : ''}
+      </div>`).join('');
 
-    const text = (str: string, x: number, yPos: number, opts?: Parameters<typeof doc.text>[3]) => {
-      doc.text(str, x, yPos, opts);
-    };
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${clientName} — ${monthLabel}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; background: #fff; color: #111; font-size: 12px; }
+  .cover { height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 60px; background: #111; color: #fff; page-break-after: always; }
+  .cover-client { font-size: 32px; font-weight: 700; margin-bottom: 10px; }
+  .cover-month { font-size: 18px; color: #aaa; margin-bottom: 8px; }
+  .cover-meta { font-size: 11px; color: #555; }
+  .card { padding: 40px 48px; page-break-after: always; border-bottom: 1px solid #eee; }
+  .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .card-num { font-size: 11px; font-weight: 700; color: #999; }
+  .card-format { font-size: 10px; font-weight: 600; background: #f0f0f0; color: #555; padding: 2px 8px; border-radius: 20px; }
+  .card-date { font-size: 10px; color: #aaa; margin-left: auto; }
+  .card-title { font-size: 20px; font-weight: 700; color: #111; margin-bottom: 20px; line-height: 1.3; }
+  .field { margin-bottom: 16px; }
+  .field-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 4px; }
+  .field-value { font-size: 12px; color: #333; line-height: 1.6; white-space: pre-wrap; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cover { background: #111 !important; color: #fff !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="cover-client">${clientName}</div>
+    <div class="cover-month">${monthLabel}</div>
+    <div class="cover-meta">${monthBriefings.length} briefing${monthBriefings.length !== 1 ? 's' : ''} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+  ${cards}
+</body>
+</html>`;
 
-    const splitText = (str: string, maxW: number): string[] =>
-      doc.splitTextToSize(str, maxW) as string[];
-
-    // Cover page
-    doc.setFillColor(18, 18, 18);
-    doc.rect(0, 0, 210, 297, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(22);
-    text(clientName, margin, 80);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(13);
-    doc.setTextColor(180, 180, 180);
-    text(monthLabel, margin, 92);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, margin, 102);
-    doc.setFontSize(9);
-    text(`${monthBriefings.length} briefing${monthBriefings.length !== 1 ? 's' : ''}`, margin, 110);
-
-    // Briefings
-    monthBriefings.forEach((b, idx) => {
-      addPage();
-
-      // Card header bar
-      doc.setFillColor(30, 30, 30);
-      doc.rect(0, 0, 210, 14, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(150, 150, 150);
-      text(`#${idx + 1}`, margin, 9);
-      if (b.format) {
-        doc.setTextColor(200, 200, 200);
-        text(b.format, margin + 10, 9);
-      }
-      if (b.data_publicacao) {
-        doc.setTextColor(120, 120, 120);
-        text(b.data_publicacao, W - margin, 9, { align: 'right' });
-      }
-
-      y = 24;
-
-      // Title
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(240, 240, 240);
-      const titleLines = splitText(b.nome_demanda, contentW);
-      text(titleLines.join('\n'), margin, y);
-      y += titleLines.length * 6 + 6;
-
-      // Divider
-      doc.setDrawColor(50, 50, 50);
-      doc.line(margin, y, W - margin, y);
-      y += 6;
-
-      const renderField = (label: string, value: string | null) => {
-        if (!value) return;
-        const clean = stripHtml(value).trim();
-        if (!clean) return;
-        checkY(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        text(label.toUpperCase(), margin, y);
-        y += 4;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(200, 200, 200);
-        const lines = splitText(clean, contentW);
-        lines.forEach((line: string) => {
-          checkY(5);
-          text(line, margin, y);
-          y += 4.5;
-        });
-        y += 3;
-      };
-
-      if (b.canal || b.etapa_funil) {
-        checkY(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        text('CANAL / FUNIL', margin, y);
-        y += 4;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(200, 200, 200);
-        text([b.canal, b.etapa_funil].filter(Boolean).join(' · '), margin, y);
-        y += 7;
-      }
-
-      renderField('Conceito', b.conceito);
-      renderField('Descrição da peça', b.descricao_peca);
-      if (b.format === 'Reels') {
-        renderField('Fala', b.reels_fala);
-        renderField('Tela', b.reels_tela);
-        renderField('Visual', b.reels_visual);
-      }
-      renderField('Legenda', b.legenda);
-
-      if (b.hashtags?.length) {
-        checkY(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        text('HASHTAGS', margin, y);
-        y += 4;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(120, 140, 180);
-        const htLines = splitText(b.hashtags.join(' '), contentW);
-        htLines.forEach((line: string) => {
-          checkY(5);
-          text(line, margin, y);
-          y += 4.5;
-        });
-      }
-
-      if (b.referencia_arte) {
-        checkY(10);
-        y += 2;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(100, 100, 100);
-        text('REFERÊNCIA', margin, y);
-        y += 4;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        doc.setTextColor(80, 120, 200);
-        const refLines = splitText(b.referencia_arte, contentW);
-        refLines.forEach((line: string) => {
-          checkY(5);
-          text(line, margin, y);
-          y += 4.5;
-        });
-      }
-    });
-
-    doc.save(`${clientName} — ${monthLabel}.pdf`);
+    const win = window.open('', '_blank');
+    if (!win) { alert('Permita pop-ups para baixar o PDF.'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 600);
   };
 
   return (
