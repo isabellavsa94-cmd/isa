@@ -27,16 +27,20 @@ const PT_MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junh
 
 function parseMonthKey(dateStr: string | null): string {
   if (!dateStr) return 'sem-data';
+  const batch = /\bv(\d+)\b/i.exec(dateStr)?.[1];
   const match = dateStr.match(/\d{2}\/(\d{2})(?:\/(\d{4}))?/);
   if (!match) return 'sem-data';
   const year = match[2] ?? new Date().getFullYear().toString();
-  return `${year}-${match[1]}`;
+  return `${year}-${match[1]}${batch ? `-v${batch}` : ''}`;
 }
 
 function monthKeyLabel(key: string): string {
   if (key === 'sem-data') return 'Sem data';
-  const [year, month] = key.split('-');
-  return `${PT_MONTHS_FULL[parseInt(month) - 1]} ${year}`;
+  const parts = key.split('-');
+  const year = parts[0];
+  const month = parts[1];
+  const batch = parts[2]; // e.g. 'v2'
+  return `${PT_MONTHS_FULL[parseInt(month) - 1]}${batch ? ` ${batch.toUpperCase()}` : ''} ${year}`;
 }
 
 function storageUrl(path: string | null | undefined) {
@@ -656,7 +660,7 @@ function BriefingCard({ briefing, index, onEdit, clientName, teamMembers, draggi
         )}
         {briefing.data_publicacao && (
           <Section title="Publicação">
-            <p>{briefing.data_publicacao}</p>
+            <p>{briefing.data_publicacao.replace(/\s*v\d+\b/gi, '').trim()}</p>
           </Section>
         )}
         {fieldValues.descricao_peca && (
@@ -1243,20 +1247,22 @@ function EditBriefingModal({ briefing, onClose, onUpdated, teamMembers }: { brie
 
 function nextMonthKey(key: string): string {
   if (key === 'sem-data') return key;
-  const [year, month] = key.split('-').map(Number);
+  const [year, month] = key.split('-').map(Number); // strips batch suffix automatically
   const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
   return `${next.y}-${String(next.m).padStart(2, '0')}`;
 }
 
 function bumpMonth(dateStr: string | null): string | null {
   if (!dateStr) return dateStr;
-  // Replace the month portion in DD/MM/YYYY or DD/MM
-  return dateStr.replace(/(\d{2})\/(\d{2})(\/\d{4})?/, (_, d, m, y) => {
-    const month = parseInt(m);
-    const nextM = month === 12 ? 1 : month + 1;
-    const nextY = month === 12 && y ? `/${parseInt(y.slice(1)) + 1}` : y ?? '';
-    return `${d}/${String(nextM).padStart(2, '0')}${nextY}`;
-  });
+  return dateStr
+    .replace(/\s*v\d+\b/gi, '') // strip batch marker when duplicating to next month
+    .trim()
+    .replace(/(\d{2})\/(\d{2})(\/\d{4})?/, (_, d, m, y) => {
+      const month = parseInt(m);
+      const nextM = month === 12 ? 1 : month + 1;
+      const nextY = month === 12 && y ? `/${parseInt(y.slice(1)) + 1}` : y ?? '';
+      return `${d}/${String(nextM).padStart(2, '0')}${nextY}`;
+    });
 }
 
 function MonthDropdown({ availableMonths, activeMonth, onChange, briefings, clientId, onDuplicated }: {
@@ -1625,7 +1631,7 @@ export function BriefingsView({
         <div class="card-header">
           <span class="card-num">#${idx + 1}</span>
           ${b.format ? `<span class="card-format">${b.format}</span>` : ''}
-          ${b.data_publicacao ? `<span class="card-date">${b.data_publicacao}</span>` : ''}
+          ${b.data_publicacao ? `<span class="card-date">${b.data_publicacao.replace(/\s*v\d+\b/gi, '').trim()}</span>` : ''}
         </div>
         <h2 class="card-title">${b.nome_demanda}</h2>
         ${b.canal || b.etapa_funil ? field('Canal / Funil', [b.canal, b.etapa_funil].filter(Boolean).join(' · ')) : ''}
