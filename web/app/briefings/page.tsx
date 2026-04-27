@@ -29,6 +29,7 @@ export default async function BriefingsPage({
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       <BriefingsView
+        key={activeClientId}
         briefings={briefings}
         clients={clients}
         activeClientId={activeClientId}

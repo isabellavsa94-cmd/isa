@@ -79,4 +79,38 @@ export const CLIENT_UIKITS: Record<string, UIKitData> = {
       { slug: 'ativo-59', label: 'Padrão de grade decorativo, linhas azul claro' },
     ],
   },
+  'vindi': {
+    colors: [
+      { hex: '#00C281', name: 'Green' },
+      { hex: '#00A36C', name: 'Green Dark' },
+      { hex: '#5CE5B0', name: 'Green Light' },
+      { hex: '#1A1A2E', name: 'Navy' },
+      { hex: '#FFFFFF', name: 'White' },
+      { hex: '#F5F5F5', name: 'Off White' },
+    ],
+    backgrounds: [
+      { hex: '#FFFFFF', name: 'White' },
+      { hex: '#F5F5F5', name: 'Off White' },
+      { hex: '#F0FDF8', name: 'Green Tint' },
+      { hex: '#1A1A2E', name: 'Navy' },
+      { hex: '#00C281', name: 'Green' },
+    ],
+    colorCombos: [
+      ['#1A1A2E', '#00C281'],
+      ['#00C281', '#FFFFFF'],
+      ['#FFFFFF', '#00C281'],
+      ['#1A1A2E', '#5CE5B0'],
+      ['#F0FDF8', '#1A1A2E'],
+      ['#00C281', '#1A1A2E'],
+    ],
+    typography: [
+      { role: 'Headline 1', fontFamily: 'Inter', weight: 'Bold', sizePx: 120 },
+      { role: 'Headline 2', fontFamily: 'Inter', weight: 'Bold', sizePx: 96 },
+      { role: 'Headline 3', fontFamily: 'Inter', weight: 'Bold', sizePx: 72 },
+      { role: 'Subtitle', fontFamily: 'Inter', weight: 'SemiBold', sizePx: 56 },
+      { role: 'Body 1', fontFamily: 'Inter', weight: 'Regular', sizePx: 48 },
+      { role: 'Body 2', fontFamily: 'Inter', weight: 'Regular', sizePx: 36 },
+    ],
+    elementos: [],
+  },
 }
