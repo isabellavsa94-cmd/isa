@@ -1509,6 +1509,8 @@ export function BriefingsView({
   const [activeMonth, setActiveMonth] = useState<string>(() => {
     const months = [...new Set(initialBriefings.map((b) => parseMonthKey(b.data_publicacao)))]
       .sort((a, b) => a === 'sem-data' ? 1 : b === 'sem-data' ? -1 : a.localeCompare(b));
+    const hasSemData = initialBriefings.some((b) => !b.data_publicacao);
+    if (hasSemData) return 'todos';
     return months.find((k) => k !== 'sem-data') ?? 'todos';
   });
 
