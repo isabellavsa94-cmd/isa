@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Briefing, BriefingFormat, Client } from '@/lib/types';
 import { CLIENT_UIKITS } from '@/lib/uikit';
+import { ThemeToggle } from '@/app/ThemeToggle';
 import { BriefingEditor } from './BriefingEditor';
 import { createClient } from '@/lib/supabase/client';
 import { Dock } from './Dock';
@@ -13,12 +14,30 @@ const SUPABASE_URL_BASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 
 type TeamMember = { nome: string; foto: string | null };
 
-const TEAM_MEMBERS: TeamMember[] = [
-  { nome: 'Renan Caixeiro', foto: 'uploads/renan-caixeiro.jpeg' },
-  { nome: 'Livia',           foto: null },
-];
+const CLIENT_TEAM_MEMBERS: Record<string, TeamMember[]> = {
+  'reportei-flux': [
+    { nome: 'Renan Caixeiro', foto: 'uploads/renan-caixeiro.jpeg' },
+    { nome: 'Livia',          foto: null },
+  ],
+};
 
 const FORMAT_TABS: Array<BriefingFormat | 'Todos'> = ['Todos', 'Feed', 'Carrossel', 'Reels', 'Stories'];
+
+const PT_MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function parseMonthKey(dateStr: string | null): string {
+  if (!dateStr) return 'sem-data';
+  const match = dateStr.match(/\d{2}\/(\d{2})(?:\/(\d{4}))?/);
+  if (!match) return 'sem-data';
+  const year = match[2] ?? new Date().getFullYear().toString();
+  return `${year}-${match[1]}`;
+}
+
+function monthKeyLabel(key: string): string {
+  if (key === 'sem-data') return 'Sem data';
+  const [year, month] = key.split('-');
+  return `${PT_MONTHS_FULL[parseInt(month) - 1]} ${year}`;
+}
 
 function storageUrl(path: string | null | undefined) {
   if (!path) return null;
@@ -88,6 +107,69 @@ function LinkField({ briefingId, field, initialValue }: { briefingId: string; fi
   );
 }
 
+function ClientLogo({ clientId, clientName, size, interactive = false }: {
+  clientId: string;
+  clientName: string;
+  size: number;
+  interactive?: boolean;
+}) {
+  const supabase = createClient();
+  const [hasLogo, setHasLogo] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [cacheBust, setCacheBust] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const logoUrl = `${SUPABASE_URL_BASE}/storage/v1/object/public/media/client-logos/${clientId}/logo${cacheBust ? `?v=${cacheBust}` : ''}`;
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const { error } = await supabase.storage
+      .from('media')
+      .upload(`client-logos/${clientId}/logo`, file, { upsert: true, contentType: file.type });
+    if (!error) { setHasLogo(true); setCacheBust(Date.now().toString()); }
+    setUploading(false);
+    e.target.value = '';
+  };
+
+  return (
+    <div
+      className="relative shrink-0 rounded-md overflow-hidden"
+      style={{ width: size, height: size }}
+      onMouseEnter={() => interactive && setHovered(true)}
+      onMouseLeave={() => interactive && setHovered(false)}
+    >
+      {hasLogo ? (
+        <img src={logoUrl} alt={clientName} className="w-full h-full object-cover" onError={() => setHasLogo(false)} />
+      ) : (
+        <div className="w-full h-full bg-neutral-700 flex items-center justify-center text-white font-bold uppercase" style={{ fontSize: Math.max(8, size * 0.4) }}>
+          {clientName.charAt(0)}
+        </div>
+      )}
+
+      {interactive && (hovered || uploading) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+          className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer"
+        >
+          {uploading ? (
+            <svg className="animate-spin" width={Math.max(10, size * 0.4)} height={Math.max(10, size * 0.4)} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : (
+            <svg width={Math.max(10, size * 0.4)} height={Math.max(10, size * 0.4)} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          )}
+        </button>
+      )}
+      {interactive && <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />}
+    </div>
+  );
+}
+
 function Avatar({ member, size }: { member: { nome: string; foto: string | null }; size: number }) {
   const url = storageUrl(member.foto);
   const px = size * 4;
@@ -116,6 +198,160 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+type TaggedSegment = { tag: string; label: string; color: string; icon: React.ReactNode; content: string } | { tag: null; content: string };
+
+const TAG_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  visual: {
+    label: 'Visual', color: '#60A5FA',
+    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>,
+  },
+  tela: {
+    label: 'Tela', color: '#A78BFA',
+    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7" /><line x1="9" y1="20" x2="15" y2="20" /><line x1="12" y1="4" x2="12" y2="20" /></svg>,
+  },
+  'texto na tela': {
+    label: 'Tela', color: '#A78BFA',
+    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7" /><line x1="9" y1="20" x2="15" y2="20" /><line x1="12" y1="4" x2="12" y2="20" /></svg>,
+  },
+  fala: {
+    label: 'Fala', color: '#34D399',
+    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>,
+  },
+  audio: {
+    label: 'Áudio', color: '#FB923C',
+    icon: <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>,
+  },
+};
+
+function normalizeTag(raw: string) {
+  return raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+function parseTaggedContent(text: string): TaggedSegment[] {
+  const TAG_RE = /\[([^\]]+):\]/g;
+  const matches: Array<{ index: number; raw: string; key: string }> = [];
+  let m: RegExpExecArray | null;
+  TAG_RE.lastIndex = 0;
+  while ((m = TAG_RE.exec(text)) !== null) {
+    matches.push({ index: m.index, raw: m[0], key: m[1] });
+  }
+  if (matches.length === 0) return [{ tag: null, content: text }];
+
+  const segments: TaggedSegment[] = [];
+  if (matches[0].index > 0) {
+    const before = text.slice(0, matches[0].index).trim();
+    if (before) segments.push({ tag: null, content: before });
+  }
+  for (let i = 0; i < matches.length; i++) {
+    const { raw, key } = matches[i];
+    const tagEnd = matches[i].index + raw.length;
+    const contentEnd = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const content = text.slice(tagEnd, contentEnd).trim();
+    const normalized = normalizeTag(key);
+    const meta = TAG_META[normalized];
+    if (meta) {
+      segments.push({ tag: normalized, label: meta.label, color: meta.color, icon: meta.icon, content });
+    } else {
+      // Label desconhecido — trata como texto puro junto ao conteúdo
+      const prev = segments[segments.length - 1];
+      const raw = `[${key}:] ${content}`;
+      if (prev && prev.tag === null) {
+        segments[segments.length - 1] = { tag: null, content: prev.content + '\n' + raw };
+      } else {
+        segments.push({ tag: null, content: raw });
+      }
+    }
+  }
+  return segments;
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function hasTaggedContent(text: string) {
+  return /\[[^\]]+:\]/.test(stripHtml(text));
+}
+
+function renderTaggedHtml(raw: string): string {
+  // Convert plain text to HTML so dangerouslySetInnerHTML renders paragraph structure
+  let result = raw.trimStart().startsWith('<')
+    ? raw
+    : raw.split('\n\n').map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+
+  for (const [rawKey, meta] of Object.entries(TAG_META)) {
+    const escaped = rawKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\[${escaped}:\\]`, 'gi');
+    const badge = `<span style="display:inline-flex;align-items:center;gap:3px;color:${meta.color};font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;margin-right:2px">${meta.label}</span>`;
+    result = result.replace(regex, badge);
+  }
+  return result;
+}
+
+function TaggedSection({ briefingId, field, rawHtml }: { briefingId: string; field: string; rawHtml: string }) {
+  const [editing, setEditing] = useState(false);
+  const [localHtml, setLocalHtml] = useState(rawHtml);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!editing) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setEditing(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [editing]);
+
+  return (
+    <div ref={containerRef} className="py-3 border-b border-neutral-800">
+      {editing ? (
+        <BriefingEditor briefingId={briefingId} field={field} initialContent={localHtml} onChange={setLocalHtml} />
+      ) : (
+        <div
+          className="cursor-text tagged-display"
+          onClick={() => setEditing(true)}
+          dangerouslySetInnerHTML={{ __html: renderTaggedHtml(localHtml) }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TaggedText({ text }: { text: string }) {
+  const segments = parseTaggedContent(text);
+  return (
+    <div>
+      {segments.map((seg, i) => {
+        if (seg.tag === null) {
+          return seg.content ? <p key={i} className="text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap">{seg.content}</p> : null;
+        }
+        if (!seg.content) return null;
+        return (
+          <div key={i} className={i > 0 ? 'mt-2.5' : ''}>
+            <div className="flex items-center gap-1.5 mb-0.5" style={{ color: seg.color }}>
+              {seg.icon}
+              <p className="text-[9px] uppercase tracking-widest font-semibold">{seg.label}</p>
+            </div>
+            <p className="text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap">{seg.content}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const FORMAT_DIMENSIONS: Record<string, { w: number; h: number }> = {
   Stories:   { w: 1080, h: 1920 },
   Reels:     { w: 1080, h: 1920 },
@@ -123,7 +359,7 @@ const FORMAT_DIMENSIONS: Record<string, { w: number; h: number }> = {
   Carrossel: { w: 1080, h: 1350 },
 };
 
-function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Briefing; index: number; onEdit: () => void; clientName: string }) {
+function BriefingCard({ briefing, index, onEdit, clientName, teamMembers, dragging, dragOver, onDragStart, onDragOver, onDrop, onDragEnd }: { briefing: Briefing; index: number; onEdit: () => void; clientName: string; teamMembers: TeamMember[]; dragging?: boolean; dragOver?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void; onDragEnd?: () => void }) {
   const supabase = createClient();
   const cardRouter = useRouter();
   const color = briefing.accent_color ?? 'oklch(0.65 0.15 250)';
@@ -138,6 +374,43 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
   const [responsavel, setResponsavel] = useState<TeamMember | null>(briefing.responsavel ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  type HumanizeIssue = { field: string; fieldLabel: string; original: string; suggestion: string; pattern: string; patternName: string };
+  const [humanizing, setHumanizing] = useState(false);
+  const [humanizeIssues, setHumanizeIssues] = useState<HumanizeIssue[] | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string | null>>({
+    legenda: briefing.legenda,
+    conceito: briefing.conceito,
+    descricao_peca: briefing.descricao_peca,
+    reels_fala: briefing.reels_fala,
+    reels_tela: briefing.reels_tela,
+  });
+  const [editorKey, setEditorKey] = useState(0);
+
+  const runHumanizer = async () => {
+    setHumanizing(true);
+    setHumanizeIssues(null);
+    try {
+      const res = await fetch('/api/humanize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: fieldValues }),
+      });
+      const { issues } = await res.json();
+      setHumanizeIssues(issues ?? []);
+    } finally {
+      setHumanizing(false);
+    }
+  };
+
+  const applyHumanizeIssue = async (issue: HumanizeIssue) => {
+    const rawValue = fieldValues[issue.field] ?? '';
+    const updated = rawValue.replace(issue.original, issue.suggestion);
+    await supabase.from('briefings').update({ [issue.field]: updated }).eq('id', briefing.id);
+    setFieldValues((prev) => ({ ...prev, [issue.field]: updated }));
+    setEditorKey((k) => k + 1);
+    setHumanizeIssues((prev) => prev?.filter((i) => i !== issue) ?? null);
+  };
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -154,7 +427,8 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
     await supabase.from('briefings').update({ responsavel: member }).eq('id', briefing.id);
   };
 
-  const imageUrl = storageUrl(currentImagePath);
+  const isBlank = currentImagePath === 'blank';
+  const imageUrl = isBlank ? null : storageUrl(currentImagePath);
   const hasImage = !!imageUrl && !currentImagePath?.startsWith('data:');
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,17 +466,25 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const aspectRatio =
-    briefing.format === 'Reels' || briefing.format === 'Stories' ? '9 / 16' : '4 / 5';
+  const aspectRatio = isBlank
+    ? '1080 / 400'
+    : briefing.format === 'Reels' || briefing.format === 'Stories' ? '9 / 16' : '4 / 5';
 
   return (
-    <div className="flex-none w-72 flex flex-col bg-neutral-900 rounded-xl overflow-hidden shadow-lg">
+    <div
+      className={`flex-none w-72 flex flex-col bg-neutral-900 rounded-xl overflow-hidden shadow-lg cursor-grab active:cursor-grabbing transition-all duration-150 ${dragging ? 'opacity-40 scale-[0.98]' : ''} ${dragOver ? 'ring-2 ring-white/30' : ''}`}
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+    >
       {/* Visual header — correct aspect ratio, full image visible */}
       <div
         className="relative shrink-0 flex flex-col justify-between p-3 overflow-hidden cursor-pointer"
         style={{
           aspectRatio,
-          background: color,
+          background: isBlank ? '#3d3d3d' : color,
           backgroundImage: hasImage ? `url(${imageUrl})` : undefined,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -224,26 +506,45 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
               </div>
             ) : (
               <>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex flex-col items-center gap-1.5 text-white hover:text-white/80 transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-full bg-white/20 border border-white/30 flex items-center justify-center backdrop-blur-sm">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <path d="m21 15-5-5L5 21" />
-                    </svg>
-                  </div>
-                  <span className="text-[11px] font-medium">
-                    {hasImage ? 'Trocar imagem' : 'Adicionar imagem'}
-                  </span>
-                  {briefing.format && FORMAT_DIMENSIONS[briefing.format] && (
-                    <span className="text-[10px] text-white/50">
-                      {FORMAT_DIMENSIONS[briefing.format].w}×{FORMAT_DIMENSIONS[briefing.format].h}px
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex flex-col items-center gap-1.5 text-white hover:text-white/80 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white/20 border border-white/30 flex items-center justify-center backdrop-blur-sm">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="m21 15-5-5L5 21" />
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-medium">
+                      {hasImage ? 'Trocar imagem' : 'Adicionar imagem'}
                     </span>
+                    {briefing.format && FORMAT_DIMENSIONS[briefing.format] && (
+                      <span className="text-[10px] text-white/50">
+                        {FORMAT_DIMENSIONS[briefing.format].w}×{FORMAT_DIMENSIONS[briefing.format].h}px
+                      </span>
+                    )}
+                  </button>
+
+                  {(hasImage || isBlank) && (
+                    <button
+                      onClick={async () => {
+                        await supabase.from('briefings').update({ image: null }).eq('id', briefing.id);
+                        setCurrentImagePath(null);
+                      }}
+                      className="flex flex-col items-center gap-1.5 text-white/60 hover:text-white transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </div>
+                      <span className="text-[11px] font-medium">Remover</span>
+                    </button>
                   )}
-                </button>
+                </div>
                 {uploadError && (
                   <p className="mt-2 text-[10px] text-red-400 text-center px-4 leading-tight">{uploadError}</p>
                 )}
@@ -284,7 +585,7 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-3 text-xs text-neutral-300">
+      <div key={editorKey} className="flex-1 overflow-y-auto px-3 text-xs text-neutral-300">
         {briefing.canal && (
           <Section title="Canal">
             <p>{briefing.canal}</p>
@@ -295,7 +596,7 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
             <p>{briefing.etapa_funil}</p>
           </Section>
         )}
-        {briefing.format === 'Reels' && (
+        {briefing.format === 'Reels' && responsavel !== null && (
         <Section title="Responsável">
           <div className="relative" ref={pickerRef}>
             <button
@@ -322,7 +623,7 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
 
             {pickerOpen && (
               <div className="absolute left-0 top-full mt-1.5 z-30 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-48">
-                {TEAM_MEMBERS.map((m) => (
+                {teamMembers.map((m) => (
                   <button
                     key={m.nome}
                     onClick={() => assignResponsavel(m)}
@@ -344,27 +645,35 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
           </div>
         </Section>
         )}
-        {briefing.conceito && (
-          <Section title="Conceito">
-            <BriefingEditor briefingId={briefing.id} field="conceito" initialContent={briefing.conceito} />
-          </Section>
+        {fieldValues.conceito && (
+          hasTaggedContent(fieldValues.conceito) ? (
+            <TaggedSection briefingId={briefing.id} field="conceito" rawHtml={fieldValues.conceito} />
+          ) : (
+            <Section title="Conceito">
+              <BriefingEditor briefingId={briefing.id} field="conceito" initialContent={fieldValues.conceito} />
+            </Section>
+          )
         )}
         {briefing.data_publicacao && (
           <Section title="Publicação">
             <p>{briefing.data_publicacao}</p>
           </Section>
         )}
-        {briefing.descricao_peca && (
-          <Section title="Descrição da peça">
-            <BriefingEditor briefingId={briefing.id} field="descricao_peca" initialContent={briefing.descricao_peca} />
-          </Section>
+        {fieldValues.descricao_peca && (
+          hasTaggedContent(fieldValues.descricao_peca) ? (
+            <TaggedSection briefingId={briefing.id} field="descricao_peca" rawHtml={fieldValues.descricao_peca} />
+          ) : (
+            <Section title="Descrição da peça">
+              <BriefingEditor briefingId={briefing.id} field="descricao_peca" initialContent={fieldValues.descricao_peca} />
+            </Section>
+          )
         )}
         <Section title="Referência de arte / Link">
           <LinkField briefingId={briefing.id} field="referencia_arte" initialValue={briefing.referencia_arte} />
         </Section>
-        {briefing.legenda && (
+        {fieldValues.legenda && (
           <Section title="Texto da legenda">
-            <BriefingEditor briefingId={briefing.id} field="legenda" initialContent={briefing.legenda} />
+            <BriefingEditor briefingId={briefing.id} field="legenda" initialContent={fieldValues.legenda} />
           </Section>
         )}
         {briefing.hashtags && briefing.hashtags.length > 0 && (
@@ -375,6 +684,18 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
         <div className="py-3 flex items-center justify-between">
           <span className="text-[10px] text-neutral-700">Editado agora</span>
           <div className="flex items-center gap-1">
+            <button
+              onClick={runHumanizer}
+              disabled={humanizing}
+              title="Humanizar texto"
+              className="flex items-center gap-1 text-[10px] text-amber-500 hover:text-amber-400 disabled:opacity-50 transition-colors px-2 py-1 rounded-lg hover:bg-neutral-800"
+            >
+              {humanizing ? (
+                <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M16,2.75c0,2.163-2.82,4.851-4.225,5.978a1.239,1.239,0,0,1-1.55,0C8.82,7.6,6,4.913,6,2.75A2.634,2.634,0,0,1,8.5,0,2.634,2.634,0,0,1,11,2.75,2.634,2.634,0,0,1,13.5,0,2.634,2.634,0,0,1,16,2.75Zm7.338,9.6-7.7,8.409A10,10,0,0,1,8.262,24H4a4,4,0,0,1-4-4V15a4,4,0,0,1,4-4h7.787a2.218,2.218,0,0,1,2.164,2.685,2.28,2.28,0,0,1-1.94,1.732L7.848,16A1,1,0,0,0,7,17.131H7a1,1,0,0,0,1.131.849l4.252-.6A4.234,4.234,0,0,0,16,13.213a4.081,4.081,0,0,0-.065-.638l3.542-3.737a2.606,2.606,0,0,1,3.671-.157A2.616,2.616,0,0,1,23.338,12.345Z"/></svg>
+              )}
+            </button>
             <button
               onClick={() => {
                 localStorage.setItem('myplatform_active_briefing', JSON.stringify({ ...briefing, client_name: clientName }));
@@ -400,6 +721,58 @@ function BriefingCard({ briefing, index, onEdit, clientName }: { briefing: Brief
           </div>
         </div>
       </div>
+
+      {/* Humanizer results modal */}
+      {humanizeIssues !== null && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setHumanizeIssues(null)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl w-[480px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-amber-500"><path d="M16,2.75c0,2.163-2.82,4.851-4.225,5.978a1.239,1.239,0,0,1-1.55,0C8.82,7.6,6,4.913,6,2.75A2.634,2.634,0,0,1,8.5,0,2.634,2.634,0,0,1,11,2.75,2.634,2.634,0,0,1,13.5,0,2.634,2.634,0,0,1,16,2.75Zm7.338,9.6-7.7,8.409A10,10,0,0,1,8.262,24H4a4,4,0,0,1-4-4V15a4,4,0,0,1,4-4h7.787a2.218,2.218,0,0,1,2.164,2.685,2.28,2.28,0,0,1-1.94,1.732L7.848,16A1,1,0,0,0,7,17.131H7a1,1,0,0,0,1.131.849l4.252-.6A4.234,4.234,0,0,0,16,13.213a4.081,4.081,0,0,0-.065-.638l3.542-3.737a2.606,2.606,0,0,1,3.671-.157A2.616,2.616,0,0,1,23.338,12.345Z"/></svg>
+                <span className="text-sm font-semibold text-white">Humanizar — {briefing.nome_demanda}</span>
+              </div>
+              <button onClick={() => setHumanizeIssues(null)} className="text-neutral-500 hover:text-white transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+              {humanizeIssues.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-green-500"><polyline points="20 6 9 17 4 12"/></svg>
+                  <p className="text-sm text-neutral-400">Nenhum padrão de IA detectado.</p>
+                </div>
+              ) : humanizeIssues.map((issue, i) => (
+                <div key={i} className="bg-neutral-800 rounded-xl p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider">{issue.fieldLabel} · {issue.pattern} {issue.patternName}</span>
+                    <button onClick={() => setHumanizeIssues((prev) => prev?.filter((_, j) => j !== i) ?? null)} className="text-neutral-600 hover:text-neutral-400 transition-colors">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-xs text-red-400/80 line-through leading-relaxed">{issue.original}</p>
+                    <p className="text-xs text-green-400 leading-relaxed">{issue.suggestion}</p>
+                  </div>
+                  <button
+                    onClick={() => applyHumanizeIssue(issue)}
+                    className="self-end text-[11px] font-semibold bg-white text-neutral-900 px-3 py-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {humanizeIssues.length > 0 && (
+              <div className="px-5 py-3 border-t border-neutral-800 shrink-0 flex justify-between items-center">
+                <span className="text-[10px] text-neutral-600">{humanizeIssues.length} {humanizeIssues.length === 1 ? 'sugestão' : 'sugestões'}</span>
+                <button onClick={() => setHumanizeIssues(null)} className="text-[11px] text-neutral-500 hover:text-white transition-colors">Fechar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -413,7 +786,7 @@ const ACCENT_PRESETS = [
   'oklch(0.68 0.12 210)',
 ];
 
-function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => void; onCreated: (b: Briefing) => void; clientId: string | null }) {
+function NewBriefingModal({ onClose, onCreated, clientId, teamMembers }: { onClose: () => void; onCreated: (b: Briefing) => void; clientId: string | null; teamMembers: TeamMember[] }) {
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -556,8 +929,8 @@ function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => voi
             />
           </div>
 
-          {/* Responsável */}
-          <div className="space-y-1.5">
+          {/* Responsável — só exibe se o cliente tiver responsáveis configurados */}
+          {teamMembers.length > 0 && <div className="space-y-1.5">
             <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Responsável</label>
             <div className="relative">
               <button
@@ -586,7 +959,7 @@ function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => voi
                   >
                     Nenhum
                   </button>
-                  {TEAM_MEMBERS.map((m) => (
+                  {teamMembers.map((m) => (
                     <button
                       key={m.nome}
                       type="button"
@@ -600,7 +973,7 @@ function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => voi
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Accent color */}
           <div className="space-y-1.5">
@@ -637,7 +1010,7 @@ function NewBriefingModal({ onClose, onCreated, clientId }: { onClose: () => voi
   );
 }
 
-function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefing; onClose: () => void; onUpdated: (b: Briefing) => void }) {
+function EditBriefingModal({ briefing, onClose, onUpdated, teamMembers }: { briefing: Briefing; onClose: () => void; onUpdated: (b: Briefing) => void; teamMembers: TeamMember[] }) {
   const supabase = createClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -646,15 +1019,16 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
     canal: briefing.canal ?? '',
     etapa_funil: briefing.etapa_funil ?? '',
     data_publicacao: briefing.data_publicacao ?? '',
-    conceito: briefing.conceito ?? '',
-    descricao_peca: briefing.descricao_peca ?? '',
+    conceito: stripHtml(briefing.conceito ?? ''),
+    descricao_peca: stripHtml(briefing.descricao_peca ?? ''),
     referencia_arte: briefing.referencia_arte ?? '',
-    legenda: briefing.legenda ?? '',
+    legenda: stripHtml(briefing.legenda ?? ''),
     hashtags: (briefing.hashtags ?? []).join(', '),
     accent_color: briefing.accent_color ?? ACCENT_PRESETS[0],
   });
   const [responsavel, setResponsavel] = useState<TeamMember | null>(briefing.responsavel ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [noImage, setNoImage] = useState(briefing.image === 'blank');
 
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -664,6 +1038,11 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
     const hashtags = form.hashtags
       ? form.hashtags.split(',').map((h) => h.trim()).filter(Boolean)
       : [];
+    const imagePayload = noImage
+      ? { image: 'blank' }
+      : briefing.image === 'blank'
+      ? { image: null }
+      : {};
     const payload = {
       nome_demanda: form.nome_demanda.trim(),
       format: form.format || null,
@@ -677,6 +1056,7 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
       hashtags,
       accent_color: form.accent_color,
       responsavel: responsavel ?? null,
+      ...imagePayload,
     };
     const { data, error } = await supabase
       .from('briefings').update(payload).eq('id', briefing.id).select().single();
@@ -788,8 +1168,8 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
               className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500" />
           </div>
 
-          {/* Responsável */}
-          <div className="space-y-1.5">
+          {/* Responsável — só exibe se o cliente tiver responsáveis configurados */}
+          {teamMembers.length > 0 && <div className="space-y-1.5">
             <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Responsável</label>
             <div className="relative">
               <button type="button" onClick={() => setPickerOpen((v) => !v)}
@@ -801,7 +1181,7 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
                 <div className="absolute left-0 top-full mt-1 z-10 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-full">
                   <button type="button" onClick={() => { setResponsavel(null); setPickerOpen(false); }}
                     className="flex items-center gap-2.5 w-full px-3 py-2 text-xs text-neutral-500 hover:bg-neutral-700 transition-colors">Nenhum</button>
-                  {TEAM_MEMBERS.map((m) => (
+                  {teamMembers.map((m) => (
                     <button key={m.nome} type="button" onClick={() => { setResponsavel(m); setPickerOpen(false); }}
                       className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs hover:bg-neutral-700 transition-colors ${responsavel?.nome === m.nome ? 'bg-neutral-700/60 text-white' : 'text-neutral-300'}`}>
                       <Avatar member={m} size={5} />{m.nome}
@@ -810,7 +1190,30 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
                 </div>
               )}
             </div>
-          </div>
+          </div>}
+
+          {/* Sem foto */}
+          <button
+            type="button"
+            onClick={() => setNoImage((v) => !v)}
+            className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg border transition-colors text-left ${
+              noImage
+                ? 'border-neutral-500 bg-neutral-800 text-white'
+                : 'border-neutral-700 bg-neutral-800/50 text-neutral-400 hover:border-neutral-600'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${noImage ? 'bg-white border-white' : 'border-neutral-600'}`}>
+              {noImage && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="3.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-medium">Sem foto de capa</p>
+              <p className="text-[10px] text-neutral-500 mt-0.5">Exibe um espaço em branco (1080×400px) no lugar da imagem</p>
+            </div>
+          </button>
 
           {/* Cor */}
           <div className="space-y-1.5">
@@ -834,6 +1237,127 @@ function EditBriefingModal({ briefing, onClose, onUpdated }: { briefing: Briefin
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function nextMonthKey(key: string): string {
+  if (key === 'sem-data') return key;
+  const [year, month] = key.split('-').map(Number);
+  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
+  return `${next.y}-${String(next.m).padStart(2, '0')}`;
+}
+
+function bumpMonth(dateStr: string | null): string | null {
+  if (!dateStr) return dateStr;
+  // Replace the month portion in DD/MM/YYYY or DD/MM
+  return dateStr.replace(/(\d{2})\/(\d{2})(\/\d{4})?/, (_, d, m, y) => {
+    const month = parseInt(m);
+    const nextM = month === 12 ? 1 : month + 1;
+    const nextY = month === 12 && y ? `/${parseInt(y.slice(1)) + 1}` : y ?? '';
+    return `${d}/${String(nextM).padStart(2, '0')}${nextY}`;
+  });
+}
+
+function MonthDropdown({ availableMonths, activeMonth, onChange, briefings, clientId, onDuplicated }: {
+  availableMonths: string[];
+  activeMonth: string;
+  onChange: (m: string) => void;
+  briefings: Briefing[];
+  clientId: string | null;
+  onDuplicated: (newBriefings: Briefing[]) => void;
+}) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleDuplicate = async () => {
+    if (activeMonth === 'todos' || activeMonth === 'sem-data') return;
+    const target = nextMonthKey(activeMonth);
+    const targetLabel = monthKeyLabel(target);
+    if (!confirm(`Duplicar todos os briefings de ${monthKeyLabel(activeMonth)} para ${targetLabel}?`)) return;
+    setDuplicating(true);
+    setOpen(false);
+
+    const monthBriefings = briefings.filter((b) => parseMonthKey(b.data_publicacao) === activeMonth);
+    const payloads = monthBriefings.map(({ id, created_at, updated_at, ...rest }) => ({
+      ...rest,
+      client_id: clientId,
+      data_publicacao: bumpMonth(rest.data_publicacao),
+      responsavel: null,
+      image: null,
+    }));
+
+    const { data, error } = await supabase.from('briefings').insert(payloads).select();
+    setDuplicating(false);
+    if (!error && data) {
+      onDuplicated(data as Briefing[]);
+      onChange(target);
+    }
+  };
+
+  const label = activeMonth === 'todos' ? 'Todos os meses' : monthKeyLabel(activeMonth);
+  const canDuplicate = activeMonth !== 'todos' && activeMonth !== 'sem-data';
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-[11px] font-medium text-neutral-300 hover:border-neutral-500 hover:text-white transition-colors"
+      >
+        {duplicating ? 'Duplicando…' : label}
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-neutral-500">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden min-w-[180px]">
+          {availableMonths.length > 1 && (
+            <button
+              onClick={() => { onChange('todos'); setOpen(false); }}
+              className={`flex items-center justify-between w-full px-3 py-2 text-xs transition-colors hover:bg-neutral-700 ${activeMonth === 'todos' ? 'text-white bg-neutral-700/50' : 'text-neutral-400'}`}
+            >
+              Todos os meses
+              {activeMonth === 'todos' && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>}
+            </button>
+          )}
+          {availableMonths.map((key) => (
+            <button
+              key={key}
+              onClick={() => { onChange(key); setOpen(false); }}
+              className={`flex items-center justify-between w-full px-3 py-2 text-xs transition-colors hover:bg-neutral-700 ${activeMonth === key ? 'text-white bg-neutral-700/50' : 'text-neutral-400'}`}
+            >
+              {monthKeyLabel(key)}
+              {activeMonth === key && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-green-400"><polyline points="20 6 9 17 4 12" /></svg>}
+            </button>
+          ))}
+          {canDuplicate && (
+            <>
+              <div className="mx-2 my-1 h-px bg-neutral-700" />
+              <button
+                onClick={handleDuplicate}
+                className="flex items-center gap-2 w-full px-3 py-2 text-xs text-neutral-400 hover:bg-neutral-700 hover:text-white transition-colors"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                Duplicar para {monthKeyLabel(nextMonthKey(activeMonth))}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -954,12 +1478,43 @@ export function BriefingsView({
   activeClientId: string | null;
 }) {
   const router = useRouter();
+  const supabase = createClient();
   const [briefings, setBriefings] = useState(initialBriefings);
   const [activeFormat, setActiveFormat] = useState<BriefingFormat | 'Todos'>('Todos');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBriefing, setEditingBriefing] = useState<Briefing | null>(null);
   const [clientTab, setClientTab] = useState<ClientTab>('briefings');
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
+  const [sortBy, setSortBy] = useState<'number' | 'date'>('number');
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  const availableMonths = [...new Set(initialBriefings.map((b) => parseMonthKey(b.data_publicacao)))]
+    .sort((a, b) => a === 'sem-data' ? 1 : b === 'sem-data' ? -1 : a.localeCompare(b));
+  const defaultMonth = availableMonths.find((k) => k !== 'sem-data') ?? 'todos';
+  const [activeMonth, setActiveMonth] = useState<string>(availableMonths.length > 0 ? defaultMonth : 'todos');
+
+  useEffect(() => {
+    if (!clientDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node))
+        setClientDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [clientDropdownOpen]);
+
+  useEffect(() => {
+    if (!sortDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node))
+        setSortDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [sortDropdownOpen]);
 
   const activeClient = clients.find((c) => c.id === activeClientId) ?? null;
 
@@ -973,12 +1528,48 @@ export function BriefingsView({
     setEditingBriefing(null);
   };
 
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (id: string) => setDraggedId(id);
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    if (id !== draggedId) setDragOverId(id);
+  };
+
+  const handleDrop = async (targetId: string) => {
+    const fromId = draggedId;
+    setDraggedId(null);
+    setDragOverId(null);
+    if (!fromId || fromId === targetId) return;
+
+    const fromIdx = sorted.findIndex((b) => b.id === fromId);
+    const toIdx = sorted.findIndex((b) => b.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...sorted];
+    const [item] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, item);
+
+    const updated = reordered.map((b, i) => ({ ...b, sort_order: i * 10 }));
+    const updatedMap = new Map(updated.map((b) => [b.id, b]));
+    setBriefings((prev) => prev.map((b) => updatedMap.get(b.id) ?? b));
+
+    await Promise.all(
+      updated.map((b) => supabase.from('briefings').update({ sort_order: b.sort_order }).eq('id', b.id))
+    );
+  };
+
+  const handleDragEnd = () => { setDraggedId(null); setDragOverId(null); };
+
   const formatCounts = briefings.reduce<Record<string, number>>((acc, b) => {
     if (b.format) acc[b.format] = (acc[b.format] ?? 0) + 1;
     return acc;
   }, {});
 
   const filtered = briefings
+    .filter((b) => activeMonth === 'todos' || parseMonthKey(b.data_publicacao) === activeMonth)
     .filter((b) => activeFormat === 'Todos' || b.format === activeFormat)
     .filter(
       (b) =>
@@ -986,6 +1577,197 @@ export function BriefingsView({
         b.nome_demanda.toLowerCase().includes(search.toLowerCase()) ||
         (b.conceito ?? '').toLowerCase().includes(search.toLowerCase()),
     );
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === 'number') {
+      if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
+      if (a.sort_order != null) return -1;
+      if (b.sort_order != null) return 1;
+      const n = (s: string) => parseInt(s.match(/#(\d+)/)?.[1] ?? '9999');
+      return n(a.nome_demanda) - n(b.nome_demanda);
+    }
+    const parseDate = (s: string | null) => {
+      if (!s) return 99999;
+      const parts = s.replace(/[^0-9/]/g, '').split('/');
+      const d = parseInt(parts[0] ?? '0');
+      const m = parseInt(parts[1] ?? '0');
+      return m * 100 + d;
+    };
+    return parseDate(a.data_publicacao) - parseDate(b.data_publicacao);
+  });
+
+  const downloadMonthPdf = async () => {
+    const { default: jsPDF } = await import('jspdf');
+    const monthBriefings = briefings
+      .filter((b) => activeMonth === 'todos' || parseMonthKey(b.data_publicacao) === activeMonth)
+      .sort((a, b) => {
+        if (a.sort_order != null && b.sort_order != null) return a.sort_order - b.sort_order;
+        if (a.sort_order != null) return -1;
+        if (b.sort_order != null) return 1;
+        return 0;
+      });
+
+    const clientName = activeClient?.name ?? 'Briefings';
+    const monthLabel = activeMonth === 'todos' ? 'Todos os meses' : monthKeyLabel(activeMonth);
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210;
+    const margin = 18;
+    const contentW = W - margin * 2;
+    let y = 0;
+
+    const addPage = () => {
+      doc.addPage();
+      y = margin;
+    };
+
+    const checkY = (needed: number) => {
+      if (y + needed > 277) addPage();
+    };
+
+    const text = (str: string, x: number, yPos: number, opts?: Parameters<typeof doc.text>[3]) => {
+      doc.text(str, x, yPos, opts);
+    };
+
+    const splitText = (str: string, maxW: number): string[] =>
+      doc.splitTextToSize(str, maxW) as string[];
+
+    // Cover page
+    doc.setFillColor(18, 18, 18);
+    doc.rect(0, 0, 210, 297, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    text(clientName, margin, 80);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(13);
+    doc.setTextColor(180, 180, 180);
+    text(monthLabel, margin, 92);
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    text(`Gerado em ${new Date().toLocaleDateString('pt-BR')}`, margin, 102);
+    doc.setFontSize(9);
+    text(`${monthBriefings.length} briefing${monthBriefings.length !== 1 ? 's' : ''}`, margin, 110);
+
+    // Briefings
+    monthBriefings.forEach((b, idx) => {
+      addPage();
+
+      // Card header bar
+      doc.setFillColor(30, 30, 30);
+      doc.rect(0, 0, 210, 14, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      text(`#${idx + 1}`, margin, 9);
+      if (b.format) {
+        doc.setTextColor(200, 200, 200);
+        text(b.format, margin + 10, 9);
+      }
+      if (b.data_publicacao) {
+        doc.setTextColor(120, 120, 120);
+        text(b.data_publicacao, W - margin, 9, { align: 'right' });
+      }
+
+      y = 24;
+
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(240, 240, 240);
+      const titleLines = splitText(b.nome_demanda, contentW);
+      text(titleLines.join('\n'), margin, y);
+      y += titleLines.length * 6 + 6;
+
+      // Divider
+      doc.setDrawColor(50, 50, 50);
+      doc.line(margin, y, W - margin, y);
+      y += 6;
+
+      const renderField = (label: string, value: string | null) => {
+        if (!value) return;
+        const clean = stripHtml(value).trim();
+        if (!clean) return;
+        checkY(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        text(label.toUpperCase(), margin, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(200, 200, 200);
+        const lines = splitText(clean, contentW);
+        lines.forEach((line: string) => {
+          checkY(5);
+          text(line, margin, y);
+          y += 4.5;
+        });
+        y += 3;
+      };
+
+      if (b.canal || b.etapa_funil) {
+        checkY(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        text('CANAL / FUNIL', margin, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(200, 200, 200);
+        text([b.canal, b.etapa_funil].filter(Boolean).join(' · '), margin, y);
+        y += 7;
+      }
+
+      renderField('Conceito', b.conceito);
+      renderField('Descrição da peça', b.descricao_peca);
+      if (b.format === 'Reels') {
+        renderField('Fala', b.reels_fala);
+        renderField('Tela', b.reels_tela);
+        renderField('Visual', b.reels_visual);
+      }
+      renderField('Legenda', b.legenda);
+
+      if (b.hashtags?.length) {
+        checkY(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        text('HASHTAGS', margin, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 140, 180);
+        const htLines = splitText(b.hashtags.join(' '), contentW);
+        htLines.forEach((line: string) => {
+          checkY(5);
+          text(line, margin, y);
+          y += 4.5;
+        });
+      }
+
+      if (b.referencia_arte) {
+        checkY(10);
+        y += 2;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        text('REFERÊNCIA', margin, y);
+        y += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(80, 120, 200);
+        const refLines = splitText(b.referencia_arte, contentW);
+        refLines.forEach((line: string) => {
+          checkY(5);
+          text(line, margin, y);
+          y += 4.5;
+        });
+      }
+    });
+
+    doc.save(`${clientName} — ${monthLabel}.pdf`);
+  };
 
   return (
     <div className="flex flex-col h-screen min-h-0 bg-neutral-950">
@@ -995,23 +1777,43 @@ export function BriefingsView({
           <Link href="/" className="text-sm font-bold text-white tracking-tight shrink-0">
             myplatform
           </Link>
+          <ThemeToggle />
 
           {/* Client switcher */}
           {clients.length > 0 && (
-            <div className="flex items-center gap-0.5">
-              {clients.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => router.push(`/briefings?client=${c.id}`)}
-                  className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
-                    c.id === activeClientId
-                      ? 'bg-neutral-800 text-white font-medium'
-                      : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              ))}
+            <div className="relative" ref={clientDropdownRef}>
+              <button
+                onClick={() => setClientDropdownOpen((v) => !v)}
+                className="flex items-center gap-2 bg-neutral-800 border border-neutral-700 text-white text-xs font-medium rounded-lg pl-2.5 pr-2.5 py-1.5 hover:border-neutral-600 transition-colors"
+              >
+                {activeClient && (
+                  <ClientLogo clientId={activeClient.id} clientName={activeClient.name} size={18} />
+                )}
+                <span>{activeClient?.name}</span>
+                <svg className="text-neutral-500 shrink-0" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {clientDropdownOpen && (
+                <div className="absolute top-full mt-1.5 left-0 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden min-w-[160px]">
+                  {clients.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => { router.push(`/briefings?client=${c.id}`); setClientDropdownOpen(false); }}
+                      className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors hover:bg-neutral-700 ${c.id === activeClientId ? 'text-white bg-neutral-700/50' : 'text-neutral-300'}`}
+                    >
+                      <ClientLogo clientId={c.id} clientName={c.name} size={18} />
+                      <span className="flex-1 text-left">{c.name}</span>
+                      {c.id === activeClientId && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-green-400 shrink-0">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1040,6 +1842,20 @@ export function BriefingsView({
               />
             </div>
           )}
+          {clientTab === 'briefings' && sorted.length > 0 && (
+            <button
+              onClick={downloadMonthPdf}
+              title="Baixar PDF"
+              className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-500 whitespace-nowrap"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              PDF
+            </button>
+          )}
           {clientTab === 'briefings' && (
             <button
               onClick={() => setModalOpen(true)}
@@ -1058,17 +1874,32 @@ export function BriefingsView({
 
       {/* Sub-header: client name + inner tabs + format filter */}
       <header className="shrink-0 bg-neutral-900 border-b border-neutral-800 px-6 pt-4 pb-0">
-        <div className="mb-3 flex items-baseline gap-3">
-          <h1 className="text-base font-semibold text-white">
-            {activeClient?.name ?? 'Briefings'}
-          </h1>
+        <div className="mb-3 flex items-center gap-3">
           {activeClient && (
-            <p className="text-xs text-neutral-500">{briefings.length} briefings</p>
+            <ClientLogo clientId={activeClient.id} clientName={activeClient.name} size={32} interactive />
           )}
+          <div className="flex items-center gap-2">
+            <h1 className="text-base font-semibold text-white">
+              {activeClient?.name ?? 'Briefings'}
+            </h1>
+            {activeClient && (
+              <p className="text-xs text-neutral-500">{filtered.length} briefings</p>
+            )}
+            {clientTab === 'briefings' && availableMonths.length > 0 && (
+              <MonthDropdown
+                availableMonths={availableMonths}
+                activeMonth={activeMonth}
+                onChange={setActiveMonth}
+                briefings={briefings}
+                clientId={activeClientId}
+                onDuplicated={(newBriefings) => setBriefings((prev) => [...prev, ...newBriefings])}
+              />
+            )}
+          </div>
         </div>
 
         {/* Inner client tabs: Briefings | UI Kit */}
-        <div className="flex gap-0 mb-0">
+        <div className="flex items-center gap-0 mb-0">
           <button
             onClick={() => setClientTab('briefings')}
             className={`px-3 py-1.5 text-xs border-b-2 transition-colors -mb-px ${
@@ -1124,19 +1955,67 @@ export function BriefingsView({
               })}
             </>
           )}
+
+          {clientTab === 'briefings' && (
+            <div className="ml-auto relative pb-px" ref={sortDropdownRef}>
+              <button
+                onClick={() => setSortDropdownOpen((v) => !v)}
+                title="Ordenar"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${sortDropdownOpen ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'}`}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M7 12h10M11 18h2" />
+                </svg>
+                <span>{sortBy === 'number' ? '#' : 'Data'}</span>
+              </button>
+
+              {sortDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 bg-neutral-800 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden w-36">
+                  {([['number', 'Por número', '#'], ['date', 'Por data', '📅']] as const).map(([val, label, icon]) => (
+                    <button
+                      key={val}
+                      onClick={() => { setSortBy(val); setSortDropdownOpen(false); }}
+                      className={`flex items-center gap-2.5 w-full px-3 py-2 text-xs transition-colors hover:bg-neutral-700 ${sortBy === val ? 'text-white bg-neutral-700/50' : 'text-neutral-400'}`}
+                    >
+                      <span className="text-neutral-500 w-4 text-center">{icon}</span>
+                      {label}
+                      {sortBy === val && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-green-400 ml-auto">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
       {/* Content area */}
       {clientTab === 'briefings' ? (
         <div className="flex-1 min-h-0 flex overflow-x-auto gap-5 px-6 py-5 items-start">
-          {filtered.length === 0 && (
+          {sorted.length === 0 && (
             <div className="flex-1 flex items-center justify-center text-sm text-neutral-600">
               Nenhum briefing{activeFormat !== 'Todos' ? ` em ${activeFormat}` : ''} ainda.
             </div>
           )}
-          {filtered.map((b, i) => (
-            <BriefingCard key={b.id + '_' + b.updated_at} briefing={b} index={i} onEdit={() => setEditingBriefing(b)} clientName={activeClient?.name ?? ''} />
+          {sorted.map((b, i) => (
+            <BriefingCard
+              key={b.id + '_' + b.updated_at}
+              briefing={b}
+              index={i}
+              onEdit={() => setEditingBriefing(b)}
+              clientName={activeClient?.name ?? ''}
+              teamMembers={CLIENT_TEAM_MEMBERS[activeClientId ?? ''] ?? []}
+              dragging={draggedId === b.id}
+              dragOver={dragOverId === b.id && draggedId !== b.id}
+              onDragStart={() => handleDragStart(b.id)}
+              onDragOver={(e) => handleDragOver(e, b.id)}
+              onDrop={() => handleDrop(b.id)}
+              onDragEnd={handleDragEnd}
+            />
           ))}
 
           {/* Add briefing card */}
@@ -1242,8 +2121,8 @@ export function BriefingsView({
 
       <Dock briefings={briefings} />
 
-      {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} clientId={activeClientId} />}
-      {editingBriefing && <EditBriefingModal briefing={editingBriefing} onClose={() => setEditingBriefing(null)} onUpdated={handleUpdated} />}
+      {modalOpen && <NewBriefingModal onClose={() => setModalOpen(false)} onCreated={handleCreated} clientId={activeClientId} teamMembers={CLIENT_TEAM_MEMBERS[activeClientId ?? ''] ?? []} />}
+      {editingBriefing && <EditBriefingModal briefing={editingBriefing} onClose={() => setEditingBriefing(null)} onUpdated={handleUpdated} teamMembers={CLIENT_TEAM_MEMBERS[activeClientId ?? ''] ?? []} />}
     </div>
   );
 }

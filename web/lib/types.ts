@@ -25,6 +25,11 @@ export type Briefing = {
   responsavel: { nome: string; foto: string | null } | null;
   image: string | null;
   slides: unknown | null;
+  reels_visual: string | null;
+  reels_tela: string | null;
+  reels_fala: string | null;
+  reels_audio: string | null;
+  sort_order: number | null;
   updated_at: string;
   created_at: string;
 };

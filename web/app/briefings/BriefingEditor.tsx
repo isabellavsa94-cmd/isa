@@ -3,6 +3,7 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -49,10 +50,12 @@ export function BriefingEditor({
   briefingId,
   field,
   initialContent,
+  onChange,
 }: {
   briefingId: string;
   field: string;
   initialContent: string | null;
+  onChange?: (html: string) => void;
 }) {
   const supabase = createClient();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -67,7 +70,7 @@ export function BriefingEditor({
   useEffect(() => { commentOpenRef.current = commentOpen; }, [commentOpen]);
 
   const editor = useEditor({
-    extensions: [StarterKit, Underline, CommentMark],
+    extensions: [StarterKit, Underline, CommentMark, Link.configure({ openOnClick: false, HTMLAttributes: { class: 'briefing-link' } })],
     content: plainToHtml(initialContent),
     editorProps: {
       attributes: {
@@ -76,11 +79,13 @@ export function BriefingEditor({
       },
     },
     onUpdate({ editor }) {
+      const html = editor.getHTML();
+      onChange?.(html);
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         await supabase
           .from('briefings')
-          .update({ [field]: editor.getHTML() })
+          .update({ [field]: html })
           .eq('id', briefingId);
       }, 1500);
     },
@@ -92,6 +97,22 @@ export function BriefingEditor({
     const onSelection = () => {
       const { from, to } = editor.state.selection;
       if (from === to) {
+        // Se cursor está dentro de um link, seleciona o link inteiro
+        if (editor.isActive('link')) {
+          const { doc } = editor.state;
+          let linkFrom = from;
+          let linkTo = from;
+          doc.nodesBetween(0, doc.content.size, (node, pos) => {
+            if (node.isText && node.marks.some((m) => m.type.name === 'link')) {
+              if (pos <= from && pos + node.nodeSize >= from) {
+                linkFrom = pos;
+                linkTo = pos + node.nodeSize;
+              }
+            }
+          });
+          editor.chain().setTextSelection({ from: linkFrom, to: linkTo }).run();
+          return;
+        }
         if (!commentOpenRef.current) setToolbar(null);
         return;
       }
@@ -171,6 +192,20 @@ export function BriefingEditor({
     window.getSelection()?.removeAllRanges();
   };
 
+  const toggleLink = () => {
+    if (!editor) return;
+    if (editor.isActive('link')) {
+      editor.chain().focus().unsetLink().run();
+    } else {
+      const { from, to } = editor.state.selection;
+      const selectedText = editor.state.doc.textBetween(from, to).trim();
+      const href = selectedText.startsWith('http') ? selectedText : `https://${selectedText}`;
+      editor.chain().focus().setLink({ href }).run();
+    }
+    setToolbar(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
   const resolveComment = async (commentId: string) => {
     setTooltip(null);
 
@@ -215,6 +250,20 @@ export function BriefingEditor({
           <FormatBtn active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} className="italic">I</FormatBtn>
           <FormatBtn active={isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} className="underline">U</FormatBtn>
           <div className="w-px h-3.5 bg-neutral-600 mx-0.5" />
+          <button
+            onClick={toggleLink}
+            title={isActive('link') ? 'Remover link' : 'Criar link'}
+            onMouseDown={(e) => e.preventDefault()}
+            className={`p-1.5 rounded transition-colors ${
+              isActive('link') ? 'bg-blue-400/20 text-blue-400' : 'text-neutral-400 hover:text-white hover:bg-neutral-700'
+            }`}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </button>
+
           <button
             onClick={() => setCommentOpen((v) => !v)}
             title="Adicionar comentário"
@@ -296,6 +345,8 @@ export function BriefingEditor({
         .tiptap p:last-child { margin-bottom: 0; }
         .tiptap strong { color: #f5f5f5; }
         .tiptap em { color: #d4d4d4; }
+        .briefing-link { color: #60a5fa; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+        .briefing-link:hover { color: #93c5fd; }
       `}</style>
     </div>
   );
