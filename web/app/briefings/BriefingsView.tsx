@@ -331,11 +331,9 @@ function TaggedSection({ briefingId, field, rawHtml }: { briefingId: string; fie
       {editing ? (
         <BriefingEditor briefingId={briefingId} field={field} initialContent={localHtml} onChange={setLocalHtml} />
       ) : (
-        <div
-          className="cursor-text tagged-display"
-          onClick={() => setEditing(true)}
-          dangerouslySetInnerHTML={{ __html: renderTaggedHtml(localHtml) }}
-        />
+        <div className="cursor-text" onClick={() => setEditing(true)}>
+          <TaggedText text={stripHtml(localHtml)} />
+        </div>
       )}
     </div>
   );
