@@ -369,7 +369,7 @@ const FORMAT_DIMENSIONS: Record<string, { w: number; h: number }> = {
   Carrossel: { w: 1080, h: 1350 },
 };
 
-function BriefingCard({ briefing, index, onEdit, clientName, teamMembers, dragging, dragOver, onDragStart, onDragOver, onDrop, onDragEnd }: { briefing: Briefing; index: number; onEdit: () => void; clientName: string; teamMembers: TeamMember[]; dragging?: boolean; dragOver?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void; onDragEnd?: () => void }) {
+function BriefingCard({ briefing, index, onEdit, onDelete, clientName, teamMembers, dragging, dragOver, onDragStart, onDragOver, onDrop, onDragEnd }: { briefing: Briefing; index: number; onEdit: () => void; onDelete: () => void; clientName: string; teamMembers: TeamMember[]; dragging?: boolean; dragOver?: boolean; onDragStart?: () => void; onDragOver?: (e: React.DragEvent) => void; onDrop?: () => void; onDragEnd?: () => void }) {
   const supabase = createClient();
   const cardRouter = useRouter();
   const color = briefing.accent_color ?? 'oklch(0.65 0.15 250)';
@@ -727,6 +727,19 @@ function BriefingCard({ briefing, index, onEdit, clientName, teamMembers, draggi
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
               Editar
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/10"
+              title="Excluir briefing"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+              Excluir
             </button>
           </div>
         </div>
@@ -1547,6 +1560,12 @@ export function BriefingsView({
     setEditingBriefing(null);
   };
 
+  const handleDeleted = async (id: string) => {
+    if (!confirm('Excluir este briefing? Essa ação não pode ser desfeita.')) return;
+    await supabase.from('briefings').delete().eq('id', id);
+    setBriefings((prev) => prev.filter((b) => b.id !== id));
+  };
+
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -1941,6 +1960,7 @@ export function BriefingsView({
               briefing={b}
               index={i}
               onEdit={() => setEditingBriefing(b)}
+              onDelete={() => handleDeleted(b.id)}
               clientName={activeClient?.name ?? ''}
               teamMembers={CLIENT_TEAM_MEMBERS[activeClientId ?? ''] ?? []}
               dragging={draggedId === b.id}
