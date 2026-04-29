@@ -819,6 +819,7 @@ function NewBriefingModal({ onClose, onCreated, clientId, teamMembers }: { onClo
     etapa_funil: '',
     data_publicacao: '',
     conceito: '',
+    descricao_peca: '',
     accent_color: ACCENT_PRESETS[0],
   });
   const [responsavel, setResponsavel] = useState<TeamMember | null>(null);
@@ -837,6 +838,7 @@ function NewBriefingModal({ onClose, onCreated, clientId, teamMembers }: { onClo
       etapa_funil: form.etapa_funil || null,
       data_publicacao: form.data_publicacao || null,
       conceito: form.conceito || null,
+      descricao_peca: form.descricao_peca || null,
       accent_color: form.accent_color,
       responsavel: responsavel ?? null,
       hashtags: [],
@@ -947,6 +949,18 @@ function NewBriefingModal({ onClose, onCreated, clientId, teamMembers }: { onClo
               value={form.conceito}
               onChange={(e) => set('conceito', e.target.value)}
               placeholder="Descreva o conceito do conteúdo..."
+              rows={3}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500 resize-none"
+            />
+          </div>
+
+          {/* Descrição da peça */}
+          <div className="space-y-1.5">
+            <label className="text-[9px] uppercase tracking-widest text-neutral-500 font-semibold">Descrição da peça</label>
+            <textarea
+              value={form.descricao_peca}
+              onChange={(e) => set('descricao_peca', e.target.value)}
+              placeholder="Descreva o que deve aparecer na peça..."
               rows={3}
               className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-xs text-neutral-100 placeholder-neutral-500 outline-none focus:border-neutral-500 resize-none"
             />
